@@ -30,7 +30,7 @@ def get_xephem_csv_path():
     return '{}_xephem.csv'.format(os.path.splitext(get_mpcorb_json_path())[0])
 
 
-def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4):
+def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=False):
     """
     perform a minor planet check around a search position
 
@@ -54,6 +54,8 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4):
     chunk_size : int
         the chunk size for multiprocessing of the search. avoid setting too low
         (<<1e4) to avoid large setup time costs. set to 0 to disable multiprocessing.
+    quiet : bool
+        whether to display informational logging
 
     Returns
     -------
@@ -61,6 +63,8 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4):
         a list of matching minor planet entries. each list entry is a tuple of the format
         ((ra, dec), separation in arcseconds, xephem db-formatted string of matched body)
     """
+    if quiet:
+        logging.disable(logging.INFO)
     coo = []
     for c, name in zip((ra, dec), ('ra', 'dec')):
         if isinstance(c, (int, float)):
