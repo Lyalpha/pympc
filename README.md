@@ -1,4 +1,3 @@
-
 pympc
 =====
 
@@ -26,7 +25,7 @@ and can be run to overwrite the catalogue with the lastest version from the Mino
 >>> pympc.update_catalogue()
 ```
 
-#####example 1
+##### example 1
 define our search location, epoch and radius and run the check
 ```
 >>> import astropy.units as u
@@ -39,7 +38,7 @@ define our search location, epoch and radius and run the check
 ```
 
 
-#####example 2
+##### example 2
 here we use float arguments, and the program assumes the units (see `pympc.minor_planet_check()` docstring)
 ```
 >>> ra = 230.028  # assumed degrees
@@ -49,13 +48,13 @@ here we use float arguments, and the program assumes the units (see `pympc.minor
 >>> pympc.minor_planet_check(ra, dec, epoch, search_radius)
 ```
 
-####setting the orbit catalogue location
+#### setting the orbit catalogue location
 the location to download the MPCORB catalogue is set via the environment variable 
 `MPCORB_CAT_PATH` (e.g. `export MPCORB_JSON_PATH = /my/file/path/mpcorb.json`). If this is not found the catalogue
 will download to the default location of `/tmp/mpcorb_extended.json`.
 
 
-####speed and multiprocessing
+#### speed and multiprocessing
 the check should take of order a second or two, depending on multiprocessing capabilities.
 
 the private function which actually performs the calculation is `_minor_planet_check()` (note leading underscore).
@@ -83,3 +82,5 @@ is to be implemented.
 
 #### acknowledgments
 this package makes use of orbit elements provided by the International Astronomical Union's [Minor Planet Center](https://www.minorplanetcenter.net).
+
+based from a package developed by Chris Klein and Duncan Galloway
