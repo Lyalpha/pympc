@@ -59,9 +59,9 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
 
     Returns
     -------
-    results : list of length 3-tuples
+    results : list of length 4-tuples
         a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra, dec), separation in arcseconds, xephem db-formatted string of matched body)
+        ((ra, dec), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
     """
     if quiet:
         logging.disable(logging.INFO)
@@ -146,9 +146,9 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
 
     Returns
     -------
-    results : list of length 3-tuples
+    results : list of length 4-tuples
         a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra, dec), separation in arcseconds, xephem db-formatted string of matched body)
+        ((ra, dec), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
     """
     try:
         xephem_db = open(get_xephem_csv_path()).readlines()
@@ -190,9 +190,9 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius=60.):
 
     Returns
     -------
-    results : list of length 3-tuples
+    results : list of length 4-tuples
         a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra, dec), separation in arcseconds, xephem db-formatted string of matched body)
+        ((ra, dec), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
     """
     results = []
     for xephem_str in xephem_db:
@@ -200,7 +200,7 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius=60.):
         mp.compute(date)
         separation = 206264.806*(float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation < search_radius:
-            results.append([(float(mp.a_ra), float(mp.a_dec)), separation, xephem_str, ])
+            results.append([(float(mp.a_ra), float(mp.a_dec)), separation, mp.mag, xephem_str, ])
     return results
 
 
