@@ -65,7 +65,7 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
         ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
     """
     if quiet:
-        logger.disable(logging.INFO)
+        logging.disable(logging.INFO)
     coo = []
     for c, name in zip((ra, dec), ('ra', 'dec')):
         if isinstance(c, (int, float)):
