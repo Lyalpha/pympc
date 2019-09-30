@@ -17,6 +17,7 @@ import pandas as pd
 from astropy.time import Time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)-10s %(processName)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 MPCORB_EXTENDED_JSON_URL = 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz'
 DEFAULT_MPCORB_JSON_PATH = '/tmp/mpcorb_extended.json'
@@ -64,7 +65,7 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
         ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
     """
     if quiet:
-        logging.disable(logging.INFO)
+        logger.disable(logging.INFO)
     coo = []
     for c, name in zip((ra, dec), ('ra', 'dec')):
         if isinstance(c, (int, float)):
@@ -73,7 +74,7 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
             try:
                 coo.append(c.to(u.radian).value)
             except (u.UnitConversionError, AttributeError):
-                logging.error('could not convert {} {} to radians'.format(name, c))
+                logger.error('could not convert {} {} to radians'.format(name, c))
                 raise
 
     if isinstance(epoch, (int, float)):
@@ -83,14 +84,14 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
     if isinstance(epoch, Time):
         decimalyear = epoch.decimalyear
     else:
-        logging.error('unrecognised format for date {}'.format(epoch))
+        logger.error('unrecognised format for date {}'.format(epoch))
         raise ValueError
 
     if not isinstance(search_radius, (int, float)):
         try:
             search_radius = search_radius.to(u.arcsec).value
         except (u.UnitConversionError, AttributeError):
-            logging.error('could not convert search_radius {} to arcseconds'.format(search_radius))
+            logger.error('could not convert search_radius {} to arcseconds'.format(search_radius))
             raise
 
     return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, c=chunk_size)
@@ -104,27 +105,27 @@ def update_catalogue():
     """
     mpcorb_path = get_mpcorb_json_path()
     fd, temp_path = mkstemp(suffix='.json')
-    logging.info('downloading mpcorb json catalogue')
+    logger.info('downloading mpcorb json catalogue')
     response = urllib.request.urlopen(MPCORB_EXTENDED_JSON_URL)
     with open(temp_path, 'wb') as f:
         f.write(gzip.decompress(response.read()))
     shutil.move(temp_path, mpcorb_path)
-    logging.info('mpcorb json catalogue saved as {}'.format(mpcorb_path))
+    logger.info('mpcorb json catalogue saved as {}'.format(mpcorb_path))
 
-    logging.info('reading mpcorb catalogue')
+    logger.info('reading mpcorb catalogue')
     mpcorb_json = pd.read_json(mpcorb_path)
 
-    logging.info('creating xephem format database from mpborb catalogue')
+    logger.info('creating xephem format database from mpborb catalogue')
     # write a minimal version of the catalogue in xephem format - column order is important
     xephem_db = mpcorb_json[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
     xephem_db.insert(1, 'type', 'e')
     xephem_db.insert(10, 'relative_epoch', 2000)
     xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd').decimalyear
 
-    logging.info('writing xephem database')
+    logger.info('writing xephem database')
     xephem_csv_path = get_xephem_csv_path()
     xephem_db.to_csv(xephem_csv_path, header=False, index=False)
-    logging.info('xephem csv database saved to {}'.format(xephem_csv_path))
+    logger.info('xephem csv database saved to {}'.format(xephem_csv_path))
 
 
 def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
@@ -153,9 +154,11 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
     try:
         xephem_db = open(get_xephem_csv_path()).readlines()
     except FileNotFoundError:
-        logging.error('xephem csv file not found at {}. set $MPCORB_CAT_PATH as desired and '
+        logger.error('xephem csv file not found at {}. set $MPCORB_CAT_PATH as desired and '
                       'run pympc.update_catalogue()'.format(get_xephem_csv_path()))
         return
+    logger.info('searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}'
+                .format(search_radius, ra, dec, Time(epoch, format='decimalyear').mjd))
     date = ephem.date(str(epoch))
     t0 = time()
     if c == 0:
@@ -167,8 +170,8 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
                                                                     repeat(date), repeat(search_radius)))
         # flatten our list of lists
         results = [r for result in results for r in result]
-    logging.info('minor planet search took {:.1f} seconds'.format(time() - t0))
-    logging.info('found {} matches'.format(len(results)))
+    logger.info('search took {:.1f} seconds'.format(time() - t0))
+    logger.info('found {} matches'.format(len(results)))
     return results
 
 
