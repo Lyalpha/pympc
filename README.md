@@ -50,7 +50,7 @@ here we use float arguments, and the program assumes the units (see `pympc.minor
 
 #### setting the orbit catalogue location
 the location to download the MPCORB catalogue is set via the environment variable 
-`MPCORB_CAT_PATH` (e.g. `export MPCORB_JSON_PATH = /my/file/path/mpcorb.json`). If this is not found the catalogue
+`MPCORB_JSON_PATH` (e.g. `export MPCORB_JSON_PATH = /my/file/path/mpcorb.json`). If this is not found the catalogue
 will download to the default location of `/tmp/mpcorb_extended.json`.
 
 

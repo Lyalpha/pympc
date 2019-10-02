@@ -20,11 +20,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)-10s %(
 logger = logging.getLogger(__name__)
 
 MPCORB_EXTENDED_JSON_URL = 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz'
-DEFAULT_MPCORB_JSON_PATH = '/tmp/mpcorb_extended.json'
+MPCORB_JSON_ENV = 'MPCORB_JSON_PATH'
+MPCORB_JSON_DEFAULT_PATH = '/tmp/mpcorb_extended.json'
 
 
 def get_mpcorb_json_path():
-    return os.environ.get('MPCORB_JSON_PATH', DEFAULT_MPCORB_JSON_PATH)
+    return os.environ.get(MPCORB_JSON_ENV, MPCORB_JSON_DEFAULT_PATH)
 
 
 def get_xephem_csv_path():
