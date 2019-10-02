@@ -31,6 +31,37 @@ def get_xephem_csv_path():
     return '{}_xephem.csv'.format(os.path.splitext(get_mpcorb_json_path())[0])
 
 
+def update_catalogue():
+    """
+    downloads the mpcorb json file and converts it to xephem db format.
+    if set, the json file is saved to the path specified in the environment
+    variable $MPCORB_JSON_PATH, otherwise it is stored in /tmp/.
+    """
+    mpcorb_path = get_mpcorb_json_path()
+    fd, temp_path = mkstemp(suffix='.json')
+    logger.info('downloading mpcorb json catalogue')
+    response = urllib.request.urlopen(MPCORB_EXTENDED_JSON_URL)
+    with open(temp_path, 'wb') as f:
+        f.write(gzip.decompress(response.read()))
+    shutil.move(temp_path, mpcorb_path)
+    logger.info('mpcorb json catalogue saved as {}'.format(mpcorb_path))
+
+    logger.info('reading mpcorb catalogue')
+    mpcorb_json = pd.read_json(mpcorb_path)
+
+    logger.info('creating xephem format database from mpborb catalogue')
+    # write a minimal version of the catalogue in xephem format - column order is important
+    xephem_db = mpcorb_json[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
+    xephem_db.insert(1, 'type', 'e')
+    xephem_db.insert(10, 'relative_epoch', 2000)
+    xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd').decimalyear
+
+    logger.info('writing xephem database')
+    xephem_csv_path = get_xephem_csv_path()
+    xephem_db.to_csv(xephem_csv_path, header=False, index=False)
+    logger.info('xephem csv database saved to {}'.format(xephem_csv_path))
+
+
 def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=False):
     """
     perform a minor planet check around a search position
@@ -41,21 +72,18 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
     Parameters
     ----------
     ra : ~astropy.units.Quantity or ~astropy.coordinates.angles.Longitude or float
-        RA of search position, if provided as a float the value is assumed to be
-        in degrees
+        RA of search position - if float, assumed to be in degrees
     dec: ~astropy.units.Quantity or ~astropy.coordinates.angles.Latitude or float
-        Dec of search position, if provided as a float the value is assumed to be
-        in degrees
+        Dec of search position - if float, assumed to be in degrees
     epoch : ~astropy.time.Time or ~datetime.datetime or float
-        epoch at which to search. If provided as a float the value is assumed to be
-        MJD format.
+        epoch at which to search - if float, assumed to be MJD format.
     search_radius : ~astropy.units.Quantity or float
-        radius around which to search the position for matching minor planets. If
-        provided as a float, the value is assumed to be in arcseconds.
-    chunk_size : int
+        radius around which to search the position for matching minor planets - if
+        float, assumed to be in arcseconds.
+    chunk_size : int, optional
         the chunk size for multiprocessing of the search. avoid setting too low
         (<<1e4) to avoid large setup time costs. set to 0 to disable multiprocessing.
-    quiet : bool
+    quiet : bool, optional
         whether to display informational logging
 
     Returns
@@ -97,37 +125,6 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
     return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, c=chunk_size)
 
 
-def update_catalogue():
-    """
-    downloads the mpcorb json file and converts it to xephem db format.
-    if set, the json file is saved to the path specified in the environment
-    variable $MPCORB_JSON_PATH, otherwise it is stored in /tmp/.
-    """
-    mpcorb_path = get_mpcorb_json_path()
-    fd, temp_path = mkstemp(suffix='.json')
-    logger.info('downloading mpcorb json catalogue')
-    response = urllib.request.urlopen(MPCORB_EXTENDED_JSON_URL)
-    with open(temp_path, 'wb') as f:
-        f.write(gzip.decompress(response.read()))
-    shutil.move(temp_path, mpcorb_path)
-    logger.info('mpcorb json catalogue saved as {}'.format(mpcorb_path))
-
-    logger.info('reading mpcorb catalogue')
-    mpcorb_json = pd.read_json(mpcorb_path)
-
-    logger.info('creating xephem format database from mpborb catalogue')
-    # write a minimal version of the catalogue in xephem format - column order is important
-    xephem_db = mpcorb_json[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
-    xephem_db.insert(1, 'type', 'e')
-    xephem_db.insert(10, 'relative_epoch', 2000)
-    xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd').decimalyear
-
-    logger.info('writing xephem database')
-    xephem_csv_path = get_xephem_csv_path()
-    xephem_db.to_csv(xephem_csv_path, header=False, index=False)
-    logger.info('xephem csv database saved to {}'.format(xephem_csv_path))
-
-
 def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
     """
     actually runs the minor planet check with strict format of arguments
@@ -142,7 +139,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
         epoch at which to search in decimal years (e.g. 2019.12345)
     search_radius : float
         search radius in arcseconds
-    c : int
+    c : int, optional
         chunk size when multiprocessing. set to 0 to disable multiprocessing.
 
     Returns
