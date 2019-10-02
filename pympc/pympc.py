@@ -208,7 +208,7 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag=Non
         mp.compute(date)
         separation = 206264.806*(float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation <= search_radius and mp.mag <= (max_mag or np.inf):
-            results.append([(float(mp.a_ra)*180./pi, float(mp.a_dec)*180./pi), separation, mp.mag, xephem_str, ])
+            results.append([(float(mp.a_ra)*180./pi, float(mp.a_dec)*180./pi), separation, mp.mag, xephem_str.strip()])
     return results
 
 
