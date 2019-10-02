@@ -34,7 +34,7 @@ define our search location, epoch and radius and run the check
 >>> dec = -11.774 * u.deg
 >>> epoch = Time("2019-01-01T00:00")
 >>> search_radius = 0.5 * u.arcmin
->>> max_max = 20
+>>> max_mag = 20
 >>> pympc.minor_planet_check(ra, dec, epoch, search_radius, max_mag)
 ```
 
@@ -46,7 +46,7 @@ here we use float arguments, and the program assumes the units (see `pympc.minor
 >>> dec = -11.774  # assumed degrees
 >>> epoch = 58484.  # assumed MJD
 >>> search_radius = 30  # assumed arcseconds
->>> max_max = 20
+>>> max_mag = 20
 >>> pympc.minor_planet_check(ra, dec, epoch, search_radius, max_mag)
 ```
 
