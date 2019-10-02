@@ -19,7 +19,7 @@ $ export MPCORB_JSON_PATH = /my/file/path/mpcorb_extended.json
 ```
 
 import the package and (optionally) grab the catalogue - this must be done at least once prior to doing any searches
-and can be run to overwrite the catalogue with the lastest version from the Minor Planet Center
+and can be run to overwrite the catalogue with the latest version from the Minor Planet Center
 ```
 >>> import pympc
 >>> pympc.update_catalogue()
@@ -34,7 +34,8 @@ define our search location, epoch and radius and run the check
 >>> dec = -11.774 * u.deg
 >>> epoch = Time("2019-01-01T00:00")
 >>> search_radius = 0.5 * u.arcmin
->>> pympc.minor_planet_check(ra, dec, epoch, search_radius)
+>>> max_max = 20
+>>> pympc.minor_planet_check(ra, dec, epoch, search_radius, max_mag)
 ```
 
 
@@ -45,7 +46,8 @@ here we use float arguments, and the program assumes the units (see `pympc.minor
 >>> dec = -11.774  # assumed degrees
 >>> epoch = 58484.  # assumed MJD
 >>> search_radius = 30  # assumed arcseconds
->>> pympc.minor_planet_check(ra, dec, epoch, search_radius)
+>>> max_max = 20
+>>> pympc.minor_planet_check(ra, dec, epoch, search_radius, max_mag)
 ```
 
 #### setting the orbit catalogue location
@@ -79,6 +81,9 @@ certain bodies.
 currently the epoch of the orbit elements is visible in the xephem db strings returned by `minor_planet_check()` as a
 decimal year format (e.g. ..,2019.317808,..). some diagnostic information and warning when using large time differences
 is to be implemented.
+
+the filtering of matches based on magnitude via `max_mag` is limited by the accuracy of the magnitude information in the
+database so some buffer should be applied to the desired magnitude cutoff to allow for this.
 
 #### acknowledgments
 this package makes use of orbit elements provided by the International Astronomical Union's [Minor Planet Center](https://www.minorplanetcenter.net).

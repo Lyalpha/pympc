@@ -63,7 +63,7 @@ def update_catalogue():
     logger.info('xephem csv database saved to {}'.format(xephem_csv_path))
 
 
-def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=False):
+def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=1e4, quiet=False):
     """
     perform a minor planet check around a search position
 
@@ -81,6 +81,8 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
     search_radius : ~astropy.units.Quantity or float
         radius around which to search the position for matching minor planets - if
         float, assumed to be in arcseconds.
+    max_mag : float, optional
+        maximum magnitude of minor planet matches to return.
     chunk_size : int, optional
         the chunk size for multiprocessing of the search. avoid setting too low
         (<<1e4) to avoid large setup time costs. set to 0 to disable multiprocessing.
@@ -123,10 +125,10 @@ def minor_planet_check(ra, dec, epoch, search_radius, chunk_size=1e4, quiet=Fals
             logger.error('could not convert search_radius {} to arcseconds'.format(search_radius))
             raise
 
-    return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, c=chunk_size)
+    return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, max_mag, c=chunk_size)
 
 
-def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
+def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=1e4):
     """
     actually runs the minor planet check with strict format of arguments
 
@@ -140,6 +142,8 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
         epoch at which to search in decimal years (e.g. 2019.12345)
     search_radius : float
         search radius in arcseconds
+    max_mag : float, optional
+        maximum magnitude of minor planet matches to return.
     c : int, optional
         chunk size when multiprocessing. set to 0 to disable multiprocessing.
 
@@ -165,7 +169,8 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
         xephem_db_chunks = np.array_split(xephem_db, len(xephem_db)//c)
         with Pool() as pool:
             results = pool.starmap(_cone_search_xephem_entries, zip(xephem_db_chunks, repeat((ra, dec)),
-                                                                    repeat(date), repeat(search_radius)))
+                                                                    repeat(date), repeat(search_radius),
+                                                                    repeat(max_mag)))
         # flatten our list of lists
         results = [r for result in results for r in result]
     logger.info('search took {:.1f} seconds'.format(time() - t0))
@@ -173,7 +178,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, c=1e4):
     return results
 
 
-def _cone_search_xephem_entries(xephem_db, coo, date, search_radius=60.):
+def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag=None):
     """
     performs a cone search around a `ra`, `dec` position at `date` to locate any entries
     in the provided `xephem_db` entries that match within `search_radius`.
@@ -188,6 +193,8 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius=60.):
         date at which to search
     search_radius : float
         search radius in arcseconds
+    max_mag : float, optional
+        maximum magnitude of minor planet matches to return.
 
     Returns
     -------
@@ -200,7 +207,7 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius=60.):
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
         separation = 206264.806*(float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
-        if separation < search_radius:
+        if separation <= search_radius and mp.mag <= (max_mag or np.inf):
             results.append([(float(mp.a_ra)*180./pi, float(mp.a_dec)*180./pi), separation, mp.mag, xephem_str, ])
     return results
 
