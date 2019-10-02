@@ -164,7 +164,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=1e4):
     date = ephem.date(str(epoch))
     t0 = time()
     if c == 0:
-        results = _cone_search_xephem_entries(xephem_db, (ra, dec), date, search_radius)
+        results = _cone_search_xephem_entries(xephem_db, (ra, dec), date, search_radius, max_mag)
     else:
         xephem_db_chunks = np.array_split(xephem_db, len(xephem_db)//c)
         with Pool() as pool:
