@@ -86,6 +86,8 @@ def update_catalogue(include_nea=True):
         mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
     logger.info('creating xephem format database from mpborb catalogue')
+    # Where we don't have a "Name" for the object, we use the "Prinicpal_desig"
+    mpcorb_json['Name'] = mpcorb_json['Name'].mask(pd.isnull, mpcorb_json['Principal_desig'])
     # write a minimal version of the catalogue in xephem format - column order is important
     xephem_db = mpcorb_json[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
     xephem_db.insert(1, 'type', 'e')
