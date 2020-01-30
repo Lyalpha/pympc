@@ -19,6 +19,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/lyalpha/pympc",
+    download_url="https://github.com/Lyalpha/pympc/archive/v0.3.tar.gz",
     classifiers=[
          "Programming Language :: Python :: 3",
     ],
