@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)-10s %(
 logger = logging.getLogger(__name__)
 
 MPCORB_EXTENDED_JSON_URL = 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz'
+NEA_EXTENDED_JSON_URL = 'https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz'
 MPCORB_JSON_ENV = 'MPCORB_JSON_PATH'
 MPCORB_JSON_DEFAULT_PATH = '/tmp/mpcorb_extended.json'
 
@@ -32,23 +33,57 @@ def get_xephem_csv_path():
     return '{}_xephem.csv'.format(os.path.splitext(get_mpcorb_json_path())[0])
 
 
-def update_catalogue():
+def update_catalogue(include_nea=True):
     """
     downloads the mpcorb json file and converts it to xephem db format.
     if set, the json file is saved to the path specified in the environment
     variable $MPCORB_JSON_PATH, otherwise it is stored in /tmp/.
+
+    Parameters
+    ----------
+    include_nea : boolean, optional
+        If `True`, the near earth asteroid catalogue will also be downloaded
+        and rows with matching `Principal_desig` in the mpcorb and nea
+        catalogues will be updated with values from nea catalogue.
+        (Since these are generally updated more often.)
     """
+    def download_cat(name, path, url):
+        fd, temp_path = mkstemp(suffix='.json')
+        logger.info('downloading {} json catalogue'.format(name))
+        response = urllib.request.urlopen(url)
+        with open(temp_path, 'wb') as f:
+            f.write(gzip.decompress(response.read()))
+        shutil.move(temp_path, path)
+        logger.info('{} json catalogue saved as {}'.format(name, path))
+
     mpcorb_path = get_mpcorb_json_path()
-    fd, temp_path = mkstemp(suffix='.json')
-    logger.info('downloading mpcorb json catalogue')
-    response = urllib.request.urlopen(MPCORB_EXTENDED_JSON_URL)
-    with open(temp_path, 'wb') as f:
-        f.write(gzip.decompress(response.read()))
-    shutil.move(temp_path, mpcorb_path)
-    logger.info('mpcorb json catalogue saved as {}'.format(mpcorb_path))
+    cats = {
+        'mpcorb': {
+            'path': mpcorb_path,
+            'url': MPCORB_EXTENDED_JSON_URL,
+        }
+    }
+    if include_nea:
+        nea_path = mpcorb_path.replace('mpcorb', 'nea')
+        cats['nea'] = {
+            'path': nea_path,
+            'url': NEA_EXTENDED_JSON_URL,
+        }
+
+    for cat_name, cat_dict in cats.items():
+        download_cat(cat_name, cat_dict['path'], cat_dict['url'])
 
     logger.info('reading mpcorb catalogue')
     mpcorb_json = pd.read_json(mpcorb_path)
+
+    if include_nea:
+        logger.info('reading nea catalogue')
+        nea_json = pd.read_json(nea_path)
+        logger.info('updating orbits for nea objects')
+        # remove rows in mpcorb for which we have an entry in nea
+        mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(nea_json["Principal_desig"])]
+        # append the nea rows from the nea catalogue onto this cut-down mpcorb
+        mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
     logger.info('creating xephem format database from mpborb catalogue')
     # write a minimal version of the catalogue in xephem format - column order is important
