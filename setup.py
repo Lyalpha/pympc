@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='pympc',
-    version='0.2',
+    version='0.3',
     author='Joe Lyman',
     description='minor planet checking',
     packages=setuptools.find_packages(),

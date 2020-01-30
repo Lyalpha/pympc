@@ -25,6 +25,10 @@ and can be run to overwrite the catalogue with the latest version from the Minor
 >>> pympc.update_catalogue()
 ```
 
+Note by default it will also download the Near Earth Asteroid catalogue and use orbits from that catalogue where
+overlap exists with the main `MPCORB` catalogue, since they are more regularly updated and subject to larger
+perturbations. This can be switched off with `pympc.update_catalogue(include_nea=False)`
+
 ##### example 1
 define our search location, epoch and radius and run the check
 ```
