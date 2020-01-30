@@ -5,9 +5,9 @@ perform checks for the presence of minor bodies at astronomical locations for a 
 
 #### installation
 
-`pip install .`
+`pip install pympc`
 
-or
+or download source and:
 
 `python setup.py install`
 
