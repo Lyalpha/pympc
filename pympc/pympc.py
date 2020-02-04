@@ -100,7 +100,7 @@ def update_catalogue(include_nea=True):
     logger.info('xephem csv database saved to {}'.format(xephem_csv_path))
 
 
-def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=1e4, quiet=False):
+def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=2e4, quiet=False):
     """
     perform a minor planet check around a search position
 
@@ -165,7 +165,7 @@ def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=1
     return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, max_mag, c=chunk_size)
 
 
-def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=1e4):
+def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=2e4):
     """
     actually runs the minor planet check with strict format of arguments
 
