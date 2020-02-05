@@ -19,73 +19,124 @@ from astropy.time import Time
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)-10s %(processName)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-MPCORB_EXTENDED_JSON_URL = 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz'
-NEA_EXTENDED_JSON_URL = 'https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz'
-MPCORB_JSON_ENV = 'MPCORB_JSON_PATH'
-MPCORB_JSON_DEFAULT_PATH = '/tmp/mpcorb_extended.json'
+CATALOGUES = {
+    'astorb': {
+        'url': 'ftp://ftp.lowell.edu/pub/elgb/astorb.dat.gz',
+        'filename': 'astorb.dat',
+    },
+    'mpcorb': {
+        'url': 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz',
+        'filename': 'mpcorb.json',
+    },
+    'nea': {
+        'url': 'https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz',
+        'filename': 'nea.json',
+    },
+}
+ASTORB_COLUMNS = ['asteroid_number', 'Name', 'orbit_computer', 'H', 'G', 'B-V', 'IRAS_diameter', 'IRAS_classification',
+                  'IC1', 'IC2', 'IC3', 'IC4', 'IC5', 'IC6', 'orbital_arc', 'num_obs', 'Epoch', 'M', 'Peri', 'Node',
+                  'i', 'e', 'a', 'date_computed', 'CEU', 'CEUdt', 'CEU_date', 'PEU_next_arcsec', 'PEU_next_date',
+                  'PEU_greatest1_arcsec', 'PEU_greatest1_date', 'PEU_greatest2_arcsec', 'PEU_greatest2_date']
+ASTORB_WIDTHS = [7, 19, 16, 6, 6, 5, 6, 5, 4, 4, 4, 4, 4, 5, 5, 6, 9, 11, 11, 10, 11, 10, 14, 9, 8, 9, 8, 8, 9, 8, 9, 8,
+                 9]
+ASTORB_XEPHEM = 'astorb_xephem.csv'
+MPCORB_XEPHEM = 'mpcorb_xephem.csv'
 
 
-def get_mpcorb_json_path():
-    return os.environ.get(MPCORB_JSON_ENV, MPCORB_JSON_DEFAULT_PATH)
-
-
-def get_xephem_csv_path():
-    return '{}_xephem.csv'.format(os.path.splitext(get_mpcorb_json_path())[0])
-
-
-def update_catalogue(include_nea=True):
+def update_catalogue(cat='both', include_nea=True, cat_dir='/tmp'):
     """
-    downloads the mpcorb json file and converts it to xephem db format.
-    if set, the json file is saved to the path specified in the environment
-    variable $MPCORB_JSON_PATH, otherwise it is stored in /tmp/.
+    download asteroid orbit elements and save as csv database readable by xephem
+
+    must be run prior to doing any minor planet checking.
 
     Parameters
     ----------
+    cat : str, optional
+        which asteroid orbit elements catalogue to download. valid choices are:
+        'astorb' - Lowell observatory's `astorb` catalogue
+        'mpcorb' - Minor Planet Center's `mpcorb_extended` catalogue
+        'both' - download both catalogues
     include_nea : boolean, optional
-        If `True`, the near earth asteroid catalogue will also be downloaded
-        and rows with matching `Principal_desig` in the mpcorb and nea
-        catalogues will be updated with values from nea catalogue.
-        (Since these are generally updated more often.)
+        if the `'mpcorb'` catalogue is being downloaded and `include_nea=True`,
+        the Minor Planet Center's near earth asteroid catalogue will also be
+        downloaded and used to update rows in mpcorb. (the nea catalogue is
+        updated more often and this can help provide better ephemerides.)
+    cat_dir : str, optional
+        the directory in which to store downloaded catalogues. this will also
+        be the location of the formatted xephem databases.
     """
-    def download_cat(name, path, url):
-        fd, temp_path = mkstemp(suffix='.json')
-        logger.info('downloading {} json catalogue'.format(name))
+
+    def download_cat(url, path):
+        fd, temp_path = mkstemp(suffix=os.path.splitext(path)[1])
         response = urllib.request.urlopen(url)
         with open(temp_path, 'wb') as f:
             f.write(gzip.decompress(response.read()))
         shutil.move(temp_path, path)
-        logger.info('{} json catalogue saved as {}'.format(name, path))
+        return path
 
-    mpcorb_path = get_mpcorb_json_path()
-    cats = {
-        'mpcorb': {
-            'path': mpcorb_path,
-            'url': MPCORB_EXTENDED_JSON_URL,
-        }
-    }
-    if include_nea:
-        nea_path = mpcorb_path.replace('mpcorb', 'nea')
-        cats['nea'] = {
-            'path': nea_path,
-            'url': NEA_EXTENDED_JSON_URL,
-        }
+    if cat not in ['both', 'astorb', 'mpcorb']:
+        raise ValueError("`catalogue` must be one of 'both', 'astorb', 'mpcorb'")
+    elif cat == 'both':
+        cat = ['astorb', 'mpcorb']
+    else:
+        cat = [cat]
+    if 'mpcorb' in cat and include_nea:
+        cat.insert(0, 'nea')
+    nea_filepath = None
 
-    for cat_name, cat_dict in cats.items():
-        download_cat(cat_name, cat_dict['path'], cat_dict['url'])
+    for cat_name in cat:
+        logger.info('processing {} catalogue'.format(cat_name))
+        catalogue = CATALOGUES[cat_name]
+        cat_filepath = os.path.join(cat_dir, catalogue['filename'])
+        cat_url = catalogue['url']
+        logger.info('downloading from {}'.format(cat_url))
+        cat_filepath = download_cat(cat_url, cat_filepath)
+        logger.info('saved as {}'.format(cat_filepath))
 
-    logger.info('reading mpcorb catalogue')
-    mpcorb_json = pd.read_json(mpcorb_path)
+        if cat_name == 'astorb':
+            _generate_astorb_xephem(cat_filepath=cat_filepath)
+        elif cat_name == 'nea':
+            nea_filepath = cat_filepath
+        elif cat_name == 'mpcorb':
+            _generate_mpcorb_xephem(cat_filepath=cat_filepath,
+                                    nea_filepath=nea_filepath)
 
-    if include_nea:
-        logger.info('reading nea catalogue')
-        nea_json = pd.read_json(nea_path)
+
+def _generate_astorb_xephem(cat_filepath):
+    logger.info('reading {}'.format(cat_filepath))
+    astorb = pd.read_fwf(cat_filepath, header=None, index_col=None, names=ASTORB_COLUMNS, widths=ASTORB_WIDTHS)
+
+    logger.info('creating xephem format database from astorb catalogue')
+    # astorb doesn't give the mean daily motion, so we calculate it here from the semi-major axis
+    astorb['n'] = 360. / (365.25689 * astorb['a'] ** 1.5)
+    xephem_db = astorb[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
+    xephem_db.insert(1, 'type', 'e')
+    xephem_db.insert(10, 'relative_epoch', 2000)
+    if np.all(xephem_db.Epoch == xephem_db.iloc[0].Epoch):
+        epoch = Time.strptime(str(xephem_db.iloc[0].Epoch), '%Y%m%d').decimalyear
+    else:
+        epoch = Time.strptime(list(map(str, xephem_db.Epoch)), '%Y%M%d').decimalyear
+    xephem_db.loc[:, 'Epoch'] = epoch
+
+    logger.info('writing astorb xephem database')
+    xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), ASTORB_XEPHEM)
+    xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format='%.8f')
+    logger.info('astorb xephem csv database saved to {}'.format(xephem_csv_path))
+
+
+def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None):
+    logger.info('reading {}'.format(cat_filepath))
+    mpcorb_json = pd.read_json(cat_filepath)
+    if nea_filepath:
+        logger.info('reading {}'.format(nea_filepath))
+        nea_json = pd.read_json(nea_filepath)
         logger.info('updating orbits for nea objects')
         # remove rows in mpcorb for which we have an entry in nea
         mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(nea_json["Principal_desig"])]
         # append the nea rows from the nea catalogue onto this cut-down mpcorb
         mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
-    logger.info('creating xephem format database from mpborb catalogue')
+    logger.info('creating xephem format database from mpcorb catalogue')
     # Where we don't have a "Name" for the object, we use the "Prinicpal_desig"
     mpcorb_json['Name'] = mpcorb_json['Name'].mask(pd.isnull, mpcorb_json['Principal_desig'])
     # write a minimal version of the catalogue in xephem format - column order is important
@@ -94,13 +145,13 @@ def update_catalogue(include_nea=True):
     xephem_db.insert(10, 'relative_epoch', 2000)
     xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd').decimalyear
 
-    logger.info('writing xephem database')
-    xephem_csv_path = get_xephem_csv_path()
-    xephem_db.to_csv(xephem_csv_path, header=False, index=False)
-    logger.info('xephem csv database saved to {}'.format(xephem_csv_path))
+    logger.info('writing mpcorb xephem database')
+    xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), MPCORB_XEPHEM)
+    xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format='%.8f')
+    logger.info('mpcorb xephem csv database saved to {}'.format(xephem_csv_path))
 
 
-def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=2e4, quiet=False):
+def minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, chunk_size=2e4, quiet=False):
     """
     perform a minor planet check around a search position
 
@@ -118,6 +169,9 @@ def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=2
     search_radius : ~astropy.units.Quantity or float
         radius around which to search the position for matching minor planets - if
         float, assumed to be in arcseconds.
+    xephem_filepath : str, optional
+        the xephem_db to use for calculating minor body positions. if None,
+        defaults to searching for the astorb xephem db in `/tmp/`
     max_mag : float, optional
         maximum magnitude of minor planet matches to return.
     chunk_size : int, optional
@@ -163,10 +217,10 @@ def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=2
             logger.error('could not convert search_radius {} to arcseconds'.format(search_radius))
             raise
 
-    return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, max_mag, c=chunk_size)
+    return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, xephem_filepath, max_mag, c=chunk_size)
 
 
-def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=2e4):
+def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, c=2e4):
     """
     actually runs the minor planet check with strict format of arguments
 
@@ -180,6 +234,9 @@ def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=2e4):
         epoch at which to search in decimal years (e.g. 2019.12345)
     search_radius : float
         search radius in arcseconds
+    xephem_filepath : str, optional
+        the xephem_db to use for calculating minor body positions. if None,
+        defaults to searching for the astorb xephem db in `/tmp/`
     max_mag : float, optional
         maximum magnitude of minor planet matches to return.
     c : int, optional
@@ -192,11 +249,13 @@ def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=2e4):
         ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
         xephem db-formatted string of matched body)
     """
+    if xephem_filepath is None:
+        xephem_filepath = os.path.join('/tmp', ASTORB_XEPHEM)
     try:
-        xephem_db = open(get_xephem_csv_path()).readlines()
+        xephem_db = open(xephem_filepath).readlines()
     except FileNotFoundError:
-        logger.error('xephem csv file not found at {}. set $MPCORB_CAT_PATH as desired and '
-                      'run pympc.update_catalogue()'.format(get_xephem_csv_path()))
+        logger.error('xephem db csv file not found at {}. run pympc.update_catalogue() '
+                     'if necessary.'.format(xephem_filepath))
         return
     logger.info('searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}'
                 .format(search_radius, ra, dec, Time(epoch, format='decimalyear').mjd))
