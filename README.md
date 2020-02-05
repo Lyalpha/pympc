@@ -3,7 +3,7 @@ pympc
 
 perform checks for the presence of minor bodies at astronomical locations for a given epoch.
 
-#### installation
+### installation
 
 `pip install pympc`
 
@@ -11,25 +11,25 @@ or download source and:
 
 `python setup.py install`
 
-#### examples
-
-define where we want the orbit catalogue to be downloaded to (see next section)
-```
-$ export MPCORB_JSON_PATH = /my/file/path/mpcorb_extended.json
-```
-
-import the package and (optionally) grab the catalogue - this must be done at least once prior to doing any searches
-and can be run to overwrite the catalogue with the latest version from the Minor Planet Center
+### setup
+frst import the package and grab the orbit element catalogue - this must be done at least once prior to doing any searches
+and can be run to overwrite the catalogues with the latest versions. the default call signature is shown
 ```
 >>> import pympc
 >>> pympc.update_catalogue()
 ```
 
-Note by default it will also download the Near Earth Asteroid catalogue and use orbits from that catalogue where
-overlap exists with the main `MPCORB` catalogue, since they are more regularly updated and subject to larger
-perturbations. This can be switched off with `pympc.update_catalogue(include_nea=False)`
+by default two catalogues will be downloaded: the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue 
+from the Minor Planet Center, and [`astorb`](https://asteroid.lowell.edu/main/astorb) from Lowell Observatory. this 
+behaviour can be changed using the `cat` argument.
 
-##### example 1
+the Near Earth Asteroid catalogue will be downloaded and used to update the `mpcorb` entries based on the value of the
+ `include_nea` argument.
+ 
+ it will create a csv file for each catalogue downloaded in the 
+ [xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501).
+
+##### example 1 (searching)
 define our search location, epoch and radius and run the check
 ```
 >>> import astropy.units as u
@@ -38,29 +38,30 @@ define our search location, epoch and radius and run the check
 >>> dec = -11.774 * u.deg
 >>> epoch = Time("2019-01-01T00:00")
 >>> search_radius = 0.5 * u.arcmin
->>> max_mag = 20
->>> pympc.minor_planet_check(ra, dec, epoch, search_radius, max_mag)
+>>> pympc.minor_planet_check(ra, dec, epoch, search_radius)
 ```
 
 
-##### example 2
+##### example 2 (assumed units)
 here we use float arguments, and the program assumes the units (see `pympc.minor_planet_check()` docstring)
 ```
 >>> ra = 230.028  # assumed degrees
 >>> dec = -11.774  # assumed degrees
 >>> epoch = 58484.  # assumed MJD
 >>> search_radius = 30  # assumed arcseconds
->>> max_mag = 20
->>> pympc.minor_planet_check(ra, dec, epoch, search_radius, max_mag)
+>>> pympc.minor_planet_check(ra, dec, epoch, search_radius)
 ```
 
-#### setting the orbit catalogue location
-the location to download the MPCORB catalogue is set via the environment variable 
-`MPCORB_JSON_PATH` (e.g. `export MPCORB_JSON_PATH = /my/file/path/mpcorb.json`). If this is not found the catalogue
-will download to the default location of `/tmp/mpcorb_extended.json`.
+##### example 3 (using a specific catalogue)
+to use a specific orbit catalogue, specify the location of the xephem database , e.g.:
 
+```
+minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/mpcorb_xphem.csv')
+```
 
-#### speed and multiprocessing
+if omitted, it will attempt to use `/tmp/astorb_xephem.csv`.
+
+### speed and multiprocessing
 the check should take of order a second or two, depending on multiprocessing capabilities.
 
 the private function which actually performs the calculation is `_minor_planet_check()` (note leading underscore).
@@ -74,22 +75,23 @@ by default the program will calculate positions of bodies in the catalogue multi
 >>> pympc.minor_planet_check(ra, dec, epoch, search_radius, chunk_size=0)
 ```
 
-#### limitations
-the orbits are propagated by [xephem](http://www.clearskyinstitute.com/xephem), and that package does not account for
-perturbations of the orbits. thus the accuracy of the position is dependant on the time difference between the
-epoch of the orbit elements and the epoch at which the search is being performed. 
-epoch differences of around a month or less should be fine for typical positional accuracies of ground-based 
-observations (~arcsecond), but time differences of several months can accrue to inaccuracies of around ~arcminute for
-certain bodies. 
+### limitations
+the orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the 
+[pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. thus 
+the accuracy of the position is dependant on the time difference between the epoch of the orbit elements and the epoch 
+at which the search is being performed. epoch differences between orbital elements calculation and observation of 
+around a month or two should be fine for typical positional accuracies of a few arcsecond for most minor bodies - note
+however that a small number of bodies (those under going strong perturbations) may be quite inaccurate (arcminutes).
 
 currently the epoch of the orbit elements is visible in the xephem db strings returned by `minor_planet_check()` as a
 decimal year format (e.g. ..,2019.317808,..). some diagnostic information and warning when using large time differences
 is to be implemented.
 
-the filtering of matches based on magnitude via `max_mag` is limited by the accuracy of the magnitude information in the
-database so some buffer should be applied to the desired magnitude cutoff to allow for this.
+the filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the accuracy 
+of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff to allow 
+for this.
 
-#### acknowledgments
+### acknowledgments
 this package makes use of data and/or services provided by the International Astronomical Union's 
 [Minor Planet Center](https://www.minorplanetcenter.net).
 
