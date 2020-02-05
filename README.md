@@ -90,6 +90,11 @@ the filtering of matches based on magnitude via `max_mag` is limited by the accu
 database so some buffer should be applied to the desired magnitude cutoff to allow for this.
 
 #### acknowledgments
-this package makes use of orbit elements provided by the International Astronomical Union's [Minor Planet Center](https://www.minorplanetcenter.net).
+this package makes use of data and/or services provided by the International Astronomical Union's 
+[Minor Planet Center](https://www.minorplanetcenter.net).
 
-based from a package developed by Chris Klein and Duncan Galloway
+orbit elements are also sourced from [Lowell Observatory](https://asteroid.lowell.edu/main/), which is funded by the 
+Lowell Observatory Endowment and NASA PDART grant NNX16AG52G.
+
+
+based from a package developed by Chris Klein and Duncan Galloway.
