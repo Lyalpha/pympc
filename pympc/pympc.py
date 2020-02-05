@@ -264,7 +264,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     if c == 0:
         results = _cone_search_xephem_entries(xephem_db, (ra, dec), date, search_radius, max_mag)
     else:
-        xephem_db_chunks = np.array_split(xephem_db, len(xephem_db) // c)
+        xephem_db_chunks = np.array_split(xephem_db, max(len(xephem_db) // c, 1))
         with Pool() as pool:
             results = pool.starmap(_cone_search_xephem_entries, zip(xephem_db_chunks, repeat((ra, dec)),
                                                                     repeat(date), repeat(search_radius),
