@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='pympc',
-    version='0.4dev',
+    version='0.4.1',
     author='Joe Lyman',
     description='minor planet checking',
     packages=setuptools.find_packages(),
@@ -19,7 +19,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/lyalpha/pympc",
-    download_url="https://github.com/Lyalpha/pympc/archive/v0.4.tar.gz",
+    download_url="https://github.com/Lyalpha/pympc/archive/v0.4.1.tar.gz",
     classifiers=[
          "Programming Language :: Python :: 3",
     ],
