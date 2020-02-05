@@ -4,9 +4,9 @@ import logging
 import os
 import shutil
 import urllib.request
+from itertools import repeat
 from math import pi
 from multiprocessing import Pool
-from itertools import repeat
 from tempfile import mkstemp
 from time import time
 
@@ -130,14 +130,15 @@ def minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, chunk_size=2
     -------
     results : list of length 4-tuples
         a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
+        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
+        xephem db-formatted string of matched body)
     """
     if quiet:
         logger.setLevel(logging.WARNING)
     coo = []
     for c, name in zip((ra, dec), ('ra', 'dec')):
         if isinstance(c, (int, float)):
-            coo.append(c * pi/180.)
+            coo.append(c * pi / 180.)
         else:
             try:
                 coo.append(c.to(u.radian).value)
@@ -188,7 +189,8 @@ def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=2e4):
     -------
     results : list of length 4-tuples
         a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
+        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
+        xephem db-formatted string of matched body)
     """
     try:
         xephem_db = open(get_xephem_csv_path()).readlines()
@@ -203,7 +205,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, max_mag=None, c=2e4):
     if c == 0:
         results = _cone_search_xephem_entries(xephem_db, (ra, dec), date, search_radius, max_mag)
     else:
-        xephem_db_chunks = np.array_split(xephem_db, len(xephem_db)//c)
+        xephem_db_chunks = np.array_split(xephem_db, len(xephem_db) // c)
         with Pool() as pool:
             results = pool.starmap(_cone_search_xephem_entries, zip(xephem_db_chunks, repeat((ra, dec)),
                                                                     repeat(date), repeat(search_radius),
@@ -237,15 +239,17 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag=Non
     -------
     results : list of length 4-tuples
         a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body, xephem db-formatted string of matched body)
+        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
+        xephem db-formatted string of matched body)
     """
     results = []
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
-        separation = 206264.806*(float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
+        separation = 206264.806 * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation <= search_radius and mp.mag <= (max_mag or np.inf):
-            results.append([(float(mp.a_ra)*180./pi, float(mp.a_dec)*180./pi), separation, mp.mag, xephem_str.strip()])
+            results.append(
+                [(float(mp.a_ra) * 180. / pi, float(mp.a_dec) * 180. / pi), separation, mp.mag, xephem_str.strip()])
     return results
 
 
