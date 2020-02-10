@@ -302,13 +302,14 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag=Non
         xephem db-formatted string of matched body)
     """
     results = []
+    radtodeg = 180. / pi
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
-        separation = 206264.806 * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
+        separation = 3600. * radtodeg * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation <= search_radius and mp.mag <= (max_mag or np.inf):
             results.append(
-                [(float(mp.a_ra) * 180. / pi, float(mp.a_dec) * 180. / pi), separation, mp.mag, xephem_str.strip()])
+                [(float(mp.a_ra) * radtodeg, float(mp.a_dec) * radtodeg), separation, mp.mag, xephem_str.strip()])
     return results
 
 
