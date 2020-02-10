@@ -113,9 +113,9 @@ def _generate_astorb_xephem(cat_filepath):
     xephem_db.insert(1, 'type', 'e')
     xephem_db.insert(10, 'relative_epoch', 2000)
     if np.all(xephem_db.Epoch == xephem_db.iloc[0].Epoch):
-        epoch = Time.strptime(str(xephem_db.iloc[0].Epoch), '%Y%m%d').decimalyear
+        epoch = Time.strptime(str(xephem_db.iloc[0].Epoch), '%Y%m%d', scale='tt').utc.decimalyear
     else:
-        epoch = Time.strptime(list(map(str, xephem_db.Epoch)), '%Y%M%d').decimalyear
+        epoch = Time.strptime(list(map(str, xephem_db.Epoch)), '%Y%M%d', scale='tt').utc.decimalyear
     xephem_db.loc[:, 'Epoch'] = epoch
 
     logger.info('writing astorb xephem database')
