@@ -143,7 +143,7 @@ def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None):
     xephem_db = mpcorb_json[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
     xephem_db.insert(1, 'type', 'e')
     xephem_db.insert(10, 'relative_epoch', 2000)
-    xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd').decimalyear
+    xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd', scale='tt').utc.decimalyear
 
     logger.info('writing mpcorb xephem database')
     xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), MPCORB_XEPHEM)
