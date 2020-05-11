@@ -19,12 +19,12 @@ and can be run to overwrite the catalogues with the latest versions. the default
 >>> pympc.update_catalogue()
 ```
 
-by default two catalogues will be downloaded: the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue 
-from the Minor Planet Center, and [`astorb`](https://asteroid.lowell.edu/main/astorb) from Lowell Observatory. this 
-behaviour can be changed using the `cat` argument.
+by default the catalogues downloaded will be the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue 
+from the Minor Planet Center. [`astorb`](https://asteroid.lowell.edu/main/astorb) from Lowell Observatory may be
+downloaded instead or as well. this behaviour can be changed using the `cat` argument.
 
-the Near Earth Asteroid catalogue will be downloaded and used to update the `mpcorb` entries based on the value of the
- `include_nea` argument.
+the Near Earth Asteroid and Comets catalogues will be downloaded and used to update the `mpcorb` entries based on 
+the values of the `include_nea` and `include_comets` arguments (both default to `True`).
  
  it will create a csv file for each catalogue downloaded in the 
  [xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501).
@@ -56,10 +56,10 @@ here we use float arguments, and the program assumes the units (see `pympc.minor
 to use a specific orbit catalogue, specify the location of the xephem database , e.g.:
 
 ```
-minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/mpcorb_xphem.csv')
+minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/astorb_xphem.csv')
 ```
 
-if omitted, it will attempt to use `/tmp/astorb_xephem.csv`.
+if omitted, it will attempt to use `/tmp/mpcorb_xephem.csv`.
 
 ### speed and multiprocessing
 the check should take of order a second or two, depending on multiprocessing capabilities.
@@ -82,6 +82,9 @@ the accuracy of the position is dependant on the time difference between the epo
 at which the search is being performed. epoch differences between orbital elements calculation and observation of 
 around a month or two should be fine for typical positional accuracies of a few arcsecond for most minor bodies - note
 however that a small number of bodies (those under going strong perturbations) may be quite inaccurate (arcminutes).
+
+the `xephem` package can only provide geocentric astrometric positions. as such, parallax effects for near-earth 
+bodies will be significant, in addition to the lack of perturbation calculations above.
 
 currently the epoch of the orbit elements is visible in the xephem db strings returned by `minor_planet_check()` as a
 decimal year format (e.g. ..,2019.317808,..). some diagnostic information and warning when using large time differences

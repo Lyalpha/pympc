@@ -32,6 +32,10 @@ CATALOGUES = {
         'url': 'https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz',
         'filename': 'nea.json',
     },
+    'comets': {
+        'url': 'https://www.minorplanetcenter.net/Extended_Files/cometels.json.gz',
+        'filename': 'cometels.json',
+    }
 }
 ASTORB_COLUMNS = ['asteroid_number', 'Name', 'orbit_computer', 'H', 'G', 'B-V', 'IRAS_diameter', 'IRAS_classification',
                   'IC1', 'IC2', 'IC3', 'IC4', 'IC5', 'IC6', 'orbital_arc', 'num_obs', 'Epoch', 'M', 'Peri', 'Node',
@@ -41,9 +45,10 @@ ASTORB_WIDTHS = [7, 19, 16, 6, 6, 5, 6, 5, 4, 4, 4, 4, 4, 5, 5, 6, 9, 11, 11, 10
                  9]
 ASTORB_XEPHEM = 'astorb_xephem.csv'
 MPCORB_XEPHEM = 'mpcorb_xephem.csv'
+DAY_IN_YEAR = 365.25689
 
 
-def update_catalogue(cat='both', include_nea=True, cat_dir='/tmp'):
+def update_catalogue(cat='mpcorb', include_nea=True, include_comets=True, cat_dir='/tmp'):
     """
     download asteroid orbit elements and save as csv database readable by xephem
 
@@ -53,14 +58,16 @@ def update_catalogue(cat='both', include_nea=True, cat_dir='/tmp'):
     ----------
     cat : str, optional
         which asteroid orbit elements catalogue to download. valid choices are:
-        'astorb' - Lowell observatory's `astorb` catalogue
         'mpcorb' - Minor Planet Center's `mpcorb_extended` catalogue
+        'astorb' - Lowell observatory's `astorb` catalogue
         'both' - download both catalogues
     include_nea : boolean, optional
         if the `'mpcorb'` catalogue is being downloaded and `include_nea=True`,
         the Minor Planet Center's near earth asteroid catalogue will also be
         downloaded and used to update rows in mpcorb. (the nea catalogue is
         updated more often and this can help provide better ephemerides.)
+    include_comets : boolean, optional
+        see `include_nea`, but for the comet catalogue.
     cat_dir : str, optional
         the directory in which to store downloaded catalogues. this will also
         be the location of the formatted xephem databases.
@@ -80,9 +87,12 @@ def update_catalogue(cat='both', include_nea=True, cat_dir='/tmp'):
         cat = ['astorb', 'mpcorb']
     else:
         cat = [cat]
-    if 'mpcorb' in cat and include_nea:
-        cat.insert(0, 'nea')
+    if 'mpcorb' in cat:
+        for include, additional_cat in ((include_nea, 'nea'), (include_comets, 'comets')):
+            if include:
+                cat.insert(0, additional_cat)
     nea_filepath = None
+    comet_filepath = None
 
     for cat_name in cat:
         logger.info('processing {} catalogue'.format(cat_name))
@@ -97,9 +107,12 @@ def update_catalogue(cat='both', include_nea=True, cat_dir='/tmp'):
             _generate_astorb_xephem(cat_filepath=cat_filepath)
         elif cat_name == 'nea':
             nea_filepath = cat_filepath
+        elif cat_name == 'comets':
+            comet_filepath = cat_filepath
         elif cat_name == 'mpcorb':
             _generate_mpcorb_xephem(cat_filepath=cat_filepath,
-                                    nea_filepath=nea_filepath)
+                                    nea_filepath=nea_filepath,
+                                    comet_filepath=comet_filepath)
 
 
 def _generate_astorb_xephem(cat_filepath):
@@ -108,7 +121,7 @@ def _generate_astorb_xephem(cat_filepath):
 
     logger.info('creating xephem format database from astorb catalogue')
     # astorb doesn't give the mean daily motion, so we calculate it here from the semi-major axis
-    astorb['n'] = 360. / (365.25689 * astorb['a'] ** 1.5)
+    astorb['n'] = 360. / (DAY_IN_YEAR * astorb['a'] ** 1.5)
     xephem_db = astorb[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
     xephem_db.insert(1, 'type', 'e')
     xephem_db.insert(10, 'relative_epoch', 2000)
@@ -124,16 +137,53 @@ def _generate_astorb_xephem(cat_filepath):
     logger.info('astorb xephem csv database saved to {}'.format(xephem_csv_path))
 
 
-def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None):
+def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None, comet_filepath=None):
     logger.info('reading {}'.format(cat_filepath))
     mpcorb_json = pd.read_json(cat_filepath)
+
+    if comet_filepath:
+        logger.info('reading {}'.format(comet_filepath))
+        comet_json = pd.read_json(comet_filepath)
+        logger.info('updating orbits for comet objects')
+        # for comets we need to update column names and calculate a few
+        # remove non-standard orbits
+        comet_json = comet_json[comet_json["Orbit_type"].isin(["C", "P", "D"])]
+        # if no epoch specified, set as perihelion
+        for column1, column2 in (("Epoch_year", "Year_of_perihelion"),
+                                 ("Epoch_month", "Month_of_perihelion"),
+                                 ("Epoch_day", "Day_of_perihelion")):
+            comet_json[column1].fillna(comet_json[column2], inplace=True)
+        # set the principal deisg column, used to compare to main mpcorb catalogue
+        comet_json.rename(columns={"Designation_and_name": "Principal_desig"}, inplace=True)
+        # semi-major axis
+        comet_json['a'] = comet_json['Perihelion_dist'] / (1 - comet_json['e'])
+        # mean daily motion
+        comet_json['n'] = 360. / (365.25689 * comet_json['a'] ** 1.5)
+
+        # epoch (as JD)
+        def to_jd(row, year, month, day):
+            return (Time("{}-{:02}-{:02}".format(*map(int, (row[year], row[month], row[day]))))
+                    + (row[day] % 1) * u.day).jd
+        comet_json['Epoch'] = comet_json.apply(to_jd, axis=1, args=("Epoch_year", "Epoch_month", "Epoch_day"))
+        # mean anomoly
+        comet_json['PeriEpoch'] = comet_json.apply(to_jd, axis=1,
+                                                   args=("Year_of_perihelion",
+                                                         "Month_of_perihelion",
+                                                         "Day_of_perihelion"))
+        dt_days = (comet_json['Epoch'] - comet_json['PeriEpoch'])
+        comet_json['M'] = comet_json['n'] * dt_days
+        # remove rows in mpcorb for which we have an entry in this catalogue
+        mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(comet_json["Principal_desig"])]
+        # append the catalogue rows onto this cut-down mpcorb
+        mpcorb_json = pd.concat([mpcorb_json, comet_json], sort=False)
+
     if nea_filepath:
         logger.info('reading {}'.format(nea_filepath))
         nea_json = pd.read_json(nea_filepath)
         logger.info('updating orbits for nea objects')
-        # remove rows in mpcorb for which we have an entry in nea
+        # remove rows in mpcorb for which we have an entry in this catalogue
         mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(nea_json["Principal_desig"])]
-        # append the nea rows from the nea catalogue onto this cut-down mpcorb
+        # append the catalogue rows onto this cut-down mpcorb
         mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
     logger.info('creating xephem format database from mpcorb catalogue')
@@ -236,7 +286,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
         search radius in arcseconds
     xephem_filepath : str, optional
         the xephem_db to use for calculating minor body positions. if None,
-        defaults to searching for the astorb xephem db in `/tmp/`
+        defaults to searching for the mpcorb xephem db in `/tmp/`
     max_mag : float, optional
         maximum magnitude of minor planet matches to return.
     c : int, optional
@@ -250,7 +300,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
         xephem db-formatted string of matched body)
     """
     if xephem_filepath is None:
-        xephem_filepath = os.path.join('/tmp', ASTORB_XEPHEM)
+        xephem_filepath = os.path.join('/tmp', MPCORB_XEPHEM)
     try:
         xephem_db = open(xephem_filepath).readlines()
     except FileNotFoundError:
