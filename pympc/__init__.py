@@ -1,3 +1,3 @@
 from .pympc import minor_planet_check, _minor_planet_check, update_catalogue, _cone_search_xephem_entries
 
-__version__ = '0.4.1'
+__version__ = '0.6.1'
