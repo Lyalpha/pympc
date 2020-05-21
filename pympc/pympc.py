@@ -190,14 +190,26 @@ def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None, comet_filepath=None
     # Where we don't have a "Name" for the object, we use the "Prinicpal_desig"
     mpcorb_json['Name'] = mpcorb_json['Name'].mask(pd.isnull, mpcorb_json['Principal_desig'])
     # write a minimal version of the catalogue in xephem format - column order is important
-    xephem_db = mpcorb_json[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
-    xephem_db.insert(1, 'type', 'e')
-    xephem_db.insert(10, 'relative_epoch', 2000)
-    xephem_db.loc[:, 'Epoch'] = Time(xephem_db.Epoch, format='jd').decimalyear
+    # eccentric orbits (eccentricity < 1)
+    xephem_db_e = mpcorb_json.loc[mpcorb_json.e < 1, ['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
+    xephem_db_e.insert(1, 'type', 'e')
+    xephem_db_e.insert(10, 'relative_epoch', 2000)
+    xephem_db_e.loc[:, 'Epoch'] = Time(xephem_db_e.Epoch, format='jd').decimalyear
+    # hyperbolic orbits (eccentricity > 1)
+    xephem_db_h = mpcorb_json.loc[mpcorb_json.e > 1, ['Name', 'PeriEpoch', 'i', 'Node', 'Peri', 'e', 'Perihelion_dist', 'H', 'G']].copy()
+    xephem_db_h.insert(1, 'type', 'h')
+    xephem_db_h.insert(8, 'relative_epoch', 2000)
+    xephem_db_h.loc[:, 'PeriEpoch'] = Time(xephem_db_h.PeriEpoch, format='jd').decimalyear
+    # parabolic orbits (eccentricity = 1)
+    xephem_db_p = mpcorb_json.loc[mpcorb_json.e == 1, ['Name', 'PeriEpoch', 'i', 'Peri', 'Perihelion_dist', 'Node', 'H', 'G']].copy()
+    xephem_db_p.insert(1, 'type', 'p')
+    xephem_db_p.insert(7, 'relative_epoch', 2000)
+    xephem_db_p.loc[:, 'PeriEpoch'] = Time(xephem_db_p.PeriEpoch, format='jd').decimalyear
 
     logger.info('writing mpcorb xephem database')
     xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), MPCORB_XEPHEM)
-    xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format='%.8f')
+    for xephem_db, mode in zip((xephem_db_e, xephem_db_h, xephem_db_p), ("w", "a", "a")):
+        xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format='%.8f', mode=mode)
     logger.info('mpcorb xephem csv database saved to {}'.format(xephem_csv_path))
 
 
