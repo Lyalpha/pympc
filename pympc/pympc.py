@@ -221,7 +221,7 @@ def minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_
         float, assumed to be in arcseconds.
     xephem_filepath : str, optional
         the xephem_db to use for calculating minor body positions. if None,
-        defaults to searching for the astorb xephem db in `/tmp/`
+        defaults to searching for the mpcorb xephem db in `/tmp/`
     max_mag : float, optional
         maximum magnitude of minor planet matches to return.
     chunk_size : int, optional
