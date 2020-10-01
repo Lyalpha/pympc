@@ -20,10 +20,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)-10s %(
 logger = logging.getLogger(__name__)
 
 CATALOGUES = {
-    'astorb': {
-        'url': 'ftp://ftp.lowell.edu/pub/elgb/astorb.dat.gz',
-        'filename': 'astorb.dat',
-    },
     'mpcorb': {
         'url': 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz',
         'filename': 'mpcorb.json',
@@ -37,30 +33,18 @@ CATALOGUES = {
         'filename': 'cometels.json',
     }
 }
-ASTORB_COLUMNS = ['asteroid_number', 'Name', 'orbit_computer', 'H', 'G', 'B-V', 'IRAS_diameter', 'IRAS_classification',
-                  'IC1', 'IC2', 'IC3', 'IC4', 'IC5', 'IC6', 'orbital_arc', 'num_obs', 'Epoch', 'M', 'Peri', 'Node',
-                  'i', 'e', 'a', 'date_computed', 'CEU', 'CEUdt', 'CEU_date', 'PEU_next_arcsec', 'PEU_next_date',
-                  'PEU_greatest1_arcsec', 'PEU_greatest1_date', 'PEU_greatest2_arcsec', 'PEU_greatest2_date']
-ASTORB_WIDTHS = [7, 19, 16, 6, 6, 5, 6, 5, 4, 4, 4, 4, 4, 5, 5, 6, 9, 11, 11, 10, 11, 10, 14, 9, 8, 9, 8, 8, 9, 8, 9, 8,
-                 9]
-ASTORB_XEPHEM = 'astorb_xephem.csv'
 MPCORB_XEPHEM = 'mpcorb_xephem.csv'
 DAY_IN_YEAR = 365.25689
 
 
-def update_catalogue(cat='mpcorb', include_nea=True, include_comets=True, cat_dir='/tmp'):
+def update_catalogue(include_nea=True, include_comets=True, cat_dir='/tmp'):
     """
-    download asteroid orbit elements and save as csv database readable by xephem
+    download MPC asteroid orbit elements and save as csv database readable by xephem
 
     must be run prior to doing any minor planet checking.
 
     Parameters
     ----------
-    cat : str, optional
-        which asteroid orbit elements catalogue to download. valid choices are:
-        'mpcorb' - Minor Planet Center's `mpcorb_extended` catalogue
-        'astorb' - Lowell observatory's `astorb` catalogue
-        'both' - download both catalogues
     include_nea : boolean, optional
         if the `'mpcorb'` catalogue is being downloaded and `include_nea=True`,
         the Minor Planet Center's near earth asteroid catalogue will also be
@@ -81,16 +65,11 @@ def update_catalogue(cat='mpcorb', include_nea=True, include_comets=True, cat_di
         shutil.move(temp_path, path)
         return path
 
-    if cat not in ['both', 'astorb', 'mpcorb']:
-        raise ValueError("`catalogue` must be one of 'both', 'astorb', 'mpcorb'")
-    elif cat == 'both':
-        cat = ['astorb', 'mpcorb']
-    else:
-        cat = [cat]
-    if 'mpcorb' in cat:
-        for include, additional_cat in ((include_nea, 'nea'), (include_comets, 'comets')):
-            if include:
-                cat.insert(0, additional_cat)
+
+    cat = ['mpcorb']
+    for include, additional_cat in ((include_nea, 'nea'), (include_comets, 'comets')):
+        if include:
+            cat.insert(0, additional_cat)
     nea_filepath = None
     comet_filepath = None
 
@@ -103,9 +82,7 @@ def update_catalogue(cat='mpcorb', include_nea=True, include_comets=True, cat_di
         cat_filepath = download_cat(cat_url, cat_filepath)
         logger.info('saved as {}'.format(cat_filepath))
 
-        if cat_name == 'astorb':
-            _generate_astorb_xephem(cat_filepath=cat_filepath)
-        elif cat_name == 'nea':
+        if cat_name == 'nea':
             nea_filepath = cat_filepath
         elif cat_name == 'comets':
             comet_filepath = cat_filepath
@@ -113,28 +90,6 @@ def update_catalogue(cat='mpcorb', include_nea=True, include_comets=True, cat_di
             _generate_mpcorb_xephem(cat_filepath=cat_filepath,
                                     nea_filepath=nea_filepath,
                                     comet_filepath=comet_filepath)
-
-
-def _generate_astorb_xephem(cat_filepath):
-    logger.info('reading {}'.format(cat_filepath))
-    astorb = pd.read_fwf(cat_filepath, header=None, index_col=None, names=ASTORB_COLUMNS, widths=ASTORB_WIDTHS)
-
-    logger.info('creating xephem format database from astorb catalogue')
-    # astorb doesn't give the mean daily motion, so we calculate it here from the semi-major axis
-    astorb['n'] = 360. / (DAY_IN_YEAR * astorb['a'] ** 1.5)
-    xephem_db = astorb[['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
-    xephem_db.insert(1, 'type', 'e')
-    xephem_db.insert(10, 'relative_epoch', 2000)
-    if np.all(xephem_db.Epoch == xephem_db.iloc[0].Epoch):
-        epoch = Time.strptime(str(xephem_db.iloc[0].Epoch), '%Y%m%d').decimalyear
-    else:
-        epoch = Time.strptime(list(map(str, xephem_db.Epoch)), '%Y%M%d').decimalyear
-    xephem_db.loc[:, 'Epoch'] = epoch
-
-    logger.info('writing astorb xephem database')
-    xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), ASTORB_XEPHEM)
-    xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format='%.8f')
-    logger.info('astorb xephem csv database saved to {}'.format(xephem_csv_path))
 
 
 def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None, comet_filepath=None):

@@ -19,9 +19,8 @@ and can be run to overwrite the catalogues with the latest versions. the default
 >>> pympc.update_catalogue()
 ```
 
-by default the catalogues downloaded will be the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue 
-from the Minor Planet Center. [`astorb`](https://asteroid.lowell.edu/main/astorb) from Lowell Observatory may be
-downloaded instead or as well. this behaviour can be changed using the `cat` argument.
+the catalogue downloaded will be the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue 
+from the Minor Planet Center.
 
 the Near Earth Asteroid and Comets catalogues will be downloaded and used to update the `mpcorb` entries based on 
 the values of the `include_nea` and `include_comets` arguments (both default to `True`).
@@ -56,7 +55,7 @@ here we use float arguments, and the program assumes the units (see `pympc.minor
 to use a specific orbit catalogue, specify the location of the xephem database , e.g.:
 
 ```
-minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/astorb_xphem.csv')
+minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/mpcorb_xphem.csv')
 ```
 
 if omitted, it will attempt to use `/tmp/mpcorb_xephem.csv`.
