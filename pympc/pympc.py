@@ -16,28 +16,30 @@ import numpy as np
 import pandas as pd
 from astropy.time import Time
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)-10s %(processName)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s  %(levelname)-10s %(processName)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 CATALOGUES = {
-    'mpcorb': {
-        'url': 'https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz',
-        'filename': 'mpcorb.json',
+    "mpcorb": {
+        "url": "https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz",
+        "filename": "mpcorb.json",
     },
-    'nea': {
-        'url': 'https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz',
-        'filename': 'nea.json',
+    "nea": {
+        "url": "https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz",
+        "filename": "nea.json",
     },
-    'comets': {
-        'url': 'https://www.minorplanetcenter.net/Extended_Files/cometels.json.gz',
-        'filename': 'cometels.json',
-    }
+    "comets": {
+        "url": "https://www.minorplanetcenter.net/Extended_Files/cometels.json.gz",
+        "filename": "cometels.json",
+    },
 }
-MPCORB_XEPHEM = 'mpcorb_xephem.csv'
+MPCORB_XEPHEM = "mpcorb_xephem.csv"
 DAY_IN_YEAR = 365.25689
 
 
-def update_catalogue(include_nea=True, include_comets=True, cat_dir='/tmp'):
+def update_catalogue(include_nea=True, include_comets=True, cat_dir="/tmp"):
     """
     download MPC asteroid orbit elements and save as csv database readable by xephem
 
@@ -60,115 +62,131 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir='/tmp'):
     def download_cat(url, path):
         fd, temp_path = mkstemp(suffix=os.path.splitext(path)[1])
         response = urllib.request.urlopen(url)
-        with open(temp_path, 'wb') as f:
+        with open(temp_path, "wb") as f:
             f.write(gzip.decompress(response.read()))
         shutil.move(temp_path, path)
         return path
 
-
-    cat = ['mpcorb']
-    for include, additional_cat in ((include_nea, 'nea'), (include_comets, 'comets')):
+    cat = ["mpcorb"]
+    for include, additional_cat in ((include_nea, "nea"), (include_comets, "comets")):
         if include:
             cat.insert(0, additional_cat)
     nea_filepath = None
     comet_filepath = None
 
     for cat_name in cat:
-        logger.info('processing {} catalogue'.format(cat_name))
+        logger.info("processing {} catalogue".format(cat_name))
         catalogue = CATALOGUES[cat_name]
-        cat_filepath = os.path.join(cat_dir, catalogue['filename'])
-        cat_url = catalogue['url']
-        logger.info('downloading from {}'.format(cat_url))
+        cat_filepath = os.path.join(cat_dir, catalogue["filename"])
+        cat_url = catalogue["url"]
+        logger.info("downloading from {}".format(cat_url))
         cat_filepath = download_cat(cat_url, cat_filepath)
-        logger.info('saved as {}'.format(cat_filepath))
+        logger.info("saved as {}".format(cat_filepath))
 
-        if cat_name == 'nea':
+        if cat_name == "nea":
             nea_filepath = cat_filepath
-        elif cat_name == 'comets':
+        elif cat_name == "comets":
             comet_filepath = cat_filepath
-        elif cat_name == 'mpcorb':
-            _generate_mpcorb_xephem(cat_filepath=cat_filepath,
-                                    nea_filepath=nea_filepath,
-                                    comet_filepath=comet_filepath)
+        elif cat_name == "mpcorb":
+            _generate_mpcorb_xephem(
+                cat_filepath=cat_filepath, nea_filepath=nea_filepath, comet_filepath=comet_filepath
+            )
 
 
 def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None, comet_filepath=None):
-    logger.info('reading {}'.format(cat_filepath))
+    logger.info("reading {}".format(cat_filepath))
     mpcorb_json = pd.read_json(cat_filepath)
 
     if comet_filepath:
-        logger.info('reading {}'.format(comet_filepath))
+        logger.info("reading {}".format(comet_filepath))
         comet_json = pd.read_json(comet_filepath)
-        logger.info('updating orbits for comet objects')
+        logger.info("updating orbits for comet objects")
         # for comets we need to update column names and calculate a few
         # remove non-standard orbits
         comet_json = comet_json[comet_json["Orbit_type"].isin(["C", "P", "D"])]
         # if no epoch specified, set as perihelion
-        for column1, column2 in (("Epoch_year", "Year_of_perihelion"),
-                                 ("Epoch_month", "Month_of_perihelion"),
-                                 ("Epoch_day", "Day_of_perihelion")):
+        for column1, column2 in (
+            ("Epoch_year", "Year_of_perihelion"),
+            ("Epoch_month", "Month_of_perihelion"),
+            ("Epoch_day", "Day_of_perihelion"),
+        ):
             comet_json[column1].fillna(comet_json[column2], inplace=True)
         # set the principal deisg column, used to compare to main mpcorb catalogue
         comet_json.rename(columns={"Designation_and_name": "Principal_desig"}, inplace=True)
         # semi-major axis
-        comet_json['a'] = comet_json['Perihelion_dist'] / (1 - comet_json['e'])
+        comet_json["a"] = comet_json["Perihelion_dist"] / (1 - comet_json["e"])
         # mean daily motion
-        comet_json['n'] = 360. / (365.25689 * comet_json['a'] ** 1.5)
+        comet_json["n"] = 360.0 / (365.25689 * comet_json["a"] ** 1.5)
 
         # epoch (as JD)
         def to_jd(row, year, month, day):
-            return (Time("{}-{:02}-{:02}".format(*map(int, (row[year], row[month], row[day]))))
-                    + (row[day] % 1) * u.day).jd
-        comet_json['Epoch'] = comet_json.apply(to_jd, axis=1, args=("Epoch_year", "Epoch_month", "Epoch_day"))
+            return (
+                Time("{}-{:02}-{:02}".format(*map(int, (row[year], row[month], row[day]))))
+                + (row[day] % 1) * u.day
+            ).jd
+
+        comet_json["Epoch"] = comet_json.apply(
+            to_jd, axis=1, args=("Epoch_year", "Epoch_month", "Epoch_day")
+        )
         # mean anomoly
-        comet_json['PeriEpoch'] = comet_json.apply(to_jd, axis=1,
-                                                   args=("Year_of_perihelion",
-                                                         "Month_of_perihelion",
-                                                         "Day_of_perihelion"))
-        dt_days = (comet_json['Epoch'] - comet_json['PeriEpoch'])
-        comet_json['M'] = comet_json['n'] * dt_days
+        comet_json["PeriEpoch"] = comet_json.apply(
+            to_jd, axis=1, args=("Year_of_perihelion", "Month_of_perihelion", "Day_of_perihelion")
+        )
+        dt_days = comet_json["Epoch"] - comet_json["PeriEpoch"]
+        comet_json["M"] = comet_json["n"] * dt_days
         # remove rows in mpcorb for which we have an entry in this catalogue
-        mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(comet_json["Principal_desig"])]
+        mpcorb_json = mpcorb_json[
+            ~mpcorb_json["Principal_desig"].isin(comet_json["Principal_desig"])
+        ]
         # append the catalogue rows onto this cut-down mpcorb
         mpcorb_json = pd.concat([mpcorb_json, comet_json], sort=False)
 
     if nea_filepath:
-        logger.info('reading {}'.format(nea_filepath))
+        logger.info("reading {}".format(nea_filepath))
         nea_json = pd.read_json(nea_filepath)
-        logger.info('updating orbits for nea objects')
+        logger.info("updating orbits for nea objects")
         # remove rows in mpcorb for which we have an entry in this catalogue
         mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(nea_json["Principal_desig"])]
         # append the catalogue rows onto this cut-down mpcorb
         mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
-    logger.info('creating xephem format database from mpcorb catalogue')
+    logger.info("creating xephem format database from mpcorb catalogue")
     # Where we don't have a "Name" for the object, we use the "Prinicpal_desig"
-    mpcorb_json['Name'] = mpcorb_json['Name'].mask(pd.isnull, mpcorb_json['Principal_desig'])
+    mpcorb_json["Name"] = mpcorb_json["Name"].mask(pd.isnull, mpcorb_json["Principal_desig"])
     # write a minimal version of the catalogue in xephem format - column order is important
     # eccentric orbits (eccentricity < 1)
-    xephem_db_e = mpcorb_json.loc[mpcorb_json.e < 1, ['Name', 'i', 'Node', 'Peri', 'a', 'n', 'e', 'M', 'Epoch', 'H', 'G']].copy()
-    xephem_db_e.insert(1, 'type', 'e')
-    xephem_db_e.insert(10, 'relative_epoch', 2000)
-    xephem_db_e.loc[:, 'Epoch'] = Time(xephem_db_e.Epoch, format='jd').decimalyear
+    xephem_db_e = mpcorb_json.loc[
+        mpcorb_json.e < 1, ["Name", "i", "Node", "Peri", "a", "n", "e", "M", "Epoch", "H", "G"]
+    ].copy()
+    xephem_db_e.insert(1, "type", "e")
+    xephem_db_e.insert(10, "relative_epoch", 2000)
+    xephem_db_e.loc[:, "Epoch"] = Time(xephem_db_e.Epoch, format="jd").decimalyear
     # hyperbolic orbits (eccentricity > 1)
-    xephem_db_h = mpcorb_json.loc[mpcorb_json.e > 1, ['Name', 'PeriEpoch', 'i', 'Node', 'Peri', 'e', 'Perihelion_dist', 'H', 'G']].copy()
-    xephem_db_h.insert(1, 'type', 'h')
-    xephem_db_h.insert(8, 'relative_epoch', 2000)
-    xephem_db_h.loc[:, 'PeriEpoch'] = Time(xephem_db_h.PeriEpoch, format='jd').decimalyear
+    xephem_db_h = mpcorb_json.loc[
+        mpcorb_json.e > 1,
+        ["Name", "PeriEpoch", "i", "Node", "Peri", "e", "Perihelion_dist", "H", "G"],
+    ].copy()
+    xephem_db_h.insert(1, "type", "h")
+    xephem_db_h.insert(8, "relative_epoch", 2000)
+    xephem_db_h.loc[:, "PeriEpoch"] = Time(xephem_db_h.PeriEpoch, format="jd").decimalyear
     # parabolic orbits (eccentricity = 1)
-    xephem_db_p = mpcorb_json.loc[mpcorb_json.e == 1, ['Name', 'PeriEpoch', 'i', 'Peri', 'Perihelion_dist', 'Node', 'H', 'G']].copy()
-    xephem_db_p.insert(1, 'type', 'p')
-    xephem_db_p.insert(7, 'relative_epoch', 2000)
-    xephem_db_p.loc[:, 'PeriEpoch'] = Time(xephem_db_p.PeriEpoch, format='jd').decimalyear
+    xephem_db_p = mpcorb_json.loc[
+        mpcorb_json.e == 1, ["Name", "PeriEpoch", "i", "Peri", "Perihelion_dist", "Node", "H", "G"]
+    ].copy()
+    xephem_db_p.insert(1, "type", "p")
+    xephem_db_p.insert(7, "relative_epoch", 2000)
+    xephem_db_p.loc[:, "PeriEpoch"] = Time(xephem_db_p.PeriEpoch, format="jd").decimalyear
 
-    logger.info('writing mpcorb xephem database')
+    logger.info("writing mpcorb xephem database")
     xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), MPCORB_XEPHEM)
     for xephem_db, mode in zip((xephem_db_e, xephem_db_h, xephem_db_p), ("w", "a", "a")):
-        xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format='%.8f', mode=mode)
-    logger.info('mpcorb xephem csv database saved to {}'.format(xephem_csv_path))
+        xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format="%.8f", mode=mode)
+    logger.info("mpcorb xephem csv database saved to {}".format(xephem_csv_path))
 
 
-def minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, chunk_size=2e4, quiet=False):
+def minor_planet_check(
+    ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, chunk_size=2e4, quiet=False
+):
     """
     perform a minor planet check around a search position
 
@@ -207,34 +225,36 @@ def minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_
     if quiet:
         logger.setLevel(logging.WARNING)
     coo = []
-    for c, name in zip((ra, dec), ('ra', 'dec')):
+    for c, name in zip((ra, dec), ("ra", "dec")):
         if isinstance(c, (int, float)):
-            coo.append(c * pi / 180.)
+            coo.append(c * pi / 180.0)
         else:
             try:
                 coo.append(c.to(u.radian).value)
             except (u.UnitConversionError, AttributeError):
-                logger.error('could not convert {} {} to radians'.format(name, c))
+                logger.error("could not convert {} {} to radians".format(name, c))
                 raise
 
     if isinstance(epoch, (int, float)):
-        epoch = Time(epoch, format='mjd')
+        epoch = Time(epoch, format="mjd")
     elif isinstance(epoch, datetime.datetime):
         epoch = Time(epoch)
     if isinstance(epoch, Time):
         decimalyear = epoch.decimalyear
     else:
-        logger.error('unrecognised format for date {}'.format(epoch))
+        logger.error("unrecognised format for date {}".format(epoch))
         raise ValueError
 
     if not isinstance(search_radius, (int, float)):
         try:
             search_radius = search_radius.to(u.arcsec).value
         except (u.UnitConversionError, AttributeError):
-            logger.error('could not convert search_radius {} to arcseconds'.format(search_radius))
+            logger.error("could not convert search_radius {} to arcseconds".format(search_radius))
             raise
 
-    return _minor_planet_check(coo[0], coo[1], decimalyear, search_radius, xephem_filepath, max_mag, c=chunk_size)
+    return _minor_planet_check(
+        coo[0], coo[1], decimalyear, search_radius, xephem_filepath, max_mag, c=chunk_size
+    )
 
 
 def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, c=2e4):
@@ -267,15 +287,20 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
         xephem db-formatted string of matched body)
     """
     if xephem_filepath is None:
-        xephem_filepath = os.path.join('/tmp', MPCORB_XEPHEM)
+        xephem_filepath = os.path.join("/tmp", MPCORB_XEPHEM)
     try:
         xephem_db = open(xephem_filepath).readlines()
     except FileNotFoundError:
-        logger.error('xephem db csv file not found at {}. run pympc.update_catalogue() '
-                     'if necessary.'.format(xephem_filepath))
+        logger.error(
+            "xephem db csv file not found at {}. run pympc.update_catalogue() "
+            "if necessary.".format(xephem_filepath)
+        )
         return
-    logger.info('searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}'
-                .format(search_radius, ra, dec, Time(epoch, format='decimalyear').mjd))
+    logger.info(
+        "searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}".format(
+            search_radius, ra, dec, Time(epoch, format="decimalyear").mjd
+        )
+    )
     date = ephem.date(str(epoch))
     t0 = time()
     if c == 0:
@@ -283,13 +308,20 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     else:
         xephem_db_chunks = np.array_split(xephem_db, max(len(xephem_db) // c, 1))
         with Pool() as pool:
-            results = pool.starmap(_cone_search_xephem_entries, zip(xephem_db_chunks, repeat((ra, dec)),
-                                                                    repeat(date), repeat(search_radius),
-                                                                    repeat(max_mag)))
+            results = pool.starmap(
+                _cone_search_xephem_entries,
+                zip(
+                    xephem_db_chunks,
+                    repeat((ra, dec)),
+                    repeat(date),
+                    repeat(search_radius),
+                    repeat(max_mag),
+                ),
+            )
         # flatten our list of lists
         results = [r for result in results for r in result]
-    logger.info('search took {:.1f} seconds'.format(time() - t0))
-    logger.info('found {} matches'.format(len(results)))
+    logger.info("search took {:.1f} seconds".format(time() - t0))
+    logger.info("found {} matches".format(len(results)))
     return results
 
 
@@ -319,16 +351,22 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag=Non
         xephem db-formatted string of matched body)
     """
     results = []
-    radtodeg = 180. / pi
+    radtodeg = 180.0 / pi
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
-        separation = 3600. * radtodeg * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
+        separation = 3600.0 * radtodeg * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation <= search_radius and mp.mag <= (max_mag or np.inf):
             results.append(
-                [(float(mp.a_ra) * radtodeg, float(mp.a_dec) * radtodeg), separation, mp.mag, xephem_str.strip()])
+                [
+                    (float(mp.a_ra) * radtodeg, float(mp.a_dec) * radtodeg),
+                    separation,
+                    mp.mag,
+                    xephem_str.strip(),
+                ]
+            )
     return results
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
