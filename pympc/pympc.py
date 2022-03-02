@@ -291,11 +291,11 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     try:
         xephem_db = open(xephem_filepath).readlines()
     except FileNotFoundError:
-        logger.error(
+        logger.exception(
             "xephem db csv file not found at {}. run pympc.update_catalogue() "
             "if necessary.".format(xephem_filepath)
         )
-        return
+        raise
     logger.info(
         "searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}".format(
             search_radius, ra, dec, Time(epoch, format="decimalyear").mjd
