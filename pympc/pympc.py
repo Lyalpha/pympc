@@ -313,6 +313,8 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
             "if necessary.".format(xephem_filepath)
         )
         raise
+    if max_mag is None:
+        max_mag = np.inf
     logger.info(
         "searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}".format(
             search_radius, ra, dec, Time(epoch, format="decimalyear").mjd
@@ -357,7 +359,7 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
         date at which to search
     search_radius : float
         search radius in arcseconds
-    max_mag : float, optional
+    max_mag : float
         maximum magnitude of minor planet matches to return.
 
     Returns
@@ -373,7 +375,7 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
         separation = 3600.0 * radtodeg * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
-        if separation <= search_radius and mp.mag <= (max_mag or np.inf):
+        if separation <= search_radius and mp.mag <= max_mag:
             results.append(
                 [
                     (float(mp.a_ra) * radtodeg, float(mp.a_dec) * radtodeg),
