@@ -1,13 +1,10 @@
 import setuptools
 
-from pympc import __version__
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="pympc",
-    version=__version__,
     author="Joe Lyman",
     description="minor planet checking",
     packages=setuptools.find_packages(),
@@ -16,7 +13,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/lyalpha/pympc",
-    download_url="https://github.com/Lyalpha/pympc/archive/v0.6.1.tar.gz",
+    entry_points={"console_scripts": ["pympc=pympc.pympc:_main_pympc",]},
     classifiers=["Programming Language :: Python :: 3"],
     python_requires=">=3.6",
 )
