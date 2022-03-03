@@ -378,7 +378,9 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
         if separation <= search_radius and mp.mag <= max_mag:
             results.append(
                 [
-                    (float(mp.a_ra) * radtodeg, float(mp.a_dec) * radtodeg),
+                    _get_minor_planet_name(xephem_str),
+                    float(mp.a_ra) * radtodeg,
+                    float(mp.a_dec) * radtodeg,
                     separation,
                     mp.mag,
                     xephem_str.strip(),
