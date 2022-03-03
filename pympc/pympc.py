@@ -1,4 +1,4 @@
-import datetime
+import argparse
 import gzip
 import logging
 import os
@@ -17,6 +17,7 @@ import ephem
 import erfa
 import numpy as np
 import pandas as pd
+from astropy.table import Table
 from astropy.time import Time
 
 logging.basicConfig(
@@ -389,5 +390,107 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
     return results
 
 
-if __name__ == "__main__":
-    pass
+def _get_minor_planet_name(xephem_str):
+    """Return the name of a minor planet from an xephem csv string"""
+    return xephem_str.split(",")[0]
+
+
+def _main_pympc(args=None):
+    """Console script to run minor planet checking, optionally downloading catalogues too."""
+    parser = argparse.ArgumentParser(
+        description="Minor planet checking", formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "ra", type=float, help="Right Ascension of position to check in degrees.",
+    )
+
+    parser.add_argument(
+        "dec", type=float, help="Declination of position to check in degrees.",
+    )
+    parser.add_argument(
+        "epoch",
+        type=str,
+        default=None,
+        help="Epoch at which to perform the search. Either pass an ISO datetime "
+        "string ('YYYY-MM-DDTHH:MM:SS') or Modified Juian Date as a float.",
+    )
+    parser.add_argument(
+        "-r",
+        "--radius",
+        type=float,
+        default=5,
+        help="The search radius around ra,dec within which to cross-match minor planets entries.",
+    )
+    parser.add_argument(
+        "--update-mpcorb",
+        action="store_true",
+        help="Whether to (re-)download the latest MPCORB catalogue. If not given, an existing catalogue "
+        "within --cat-dir will be used, and the checking of NEAs or Comets will follow what options "
+        "were included when the existing catalogue was downloaded.",
+    )
+    parser.add_argument(
+        "--include-nea",
+        action="store_true",
+        help="Whether to include Near Earth Asteroids in the catalogue update (this only takes effect when "
+        "--update-mpcorb is used).",
+    )
+    parser.add_argument(
+        "--include-comets",
+        action="store_true",
+        help="Whether to include Comets in the catalogue update (this only takes effect when "
+        "--update-mpcorb is used).",
+    )
+    parser.add_argument(
+        "-m",
+        "--max-mag",
+        type=float,
+        default=None,
+        help="The maximum magnitude of minor planets to include in the search.",
+    )
+    parser.add_argument(
+        "-cat-dir",
+        type=str,
+        default=None,
+        help="The directory in which to download catalogues, or fetch an existing catalogue from. "
+        "If None, this will default to the current temporary directory. The programme will "
+        f"search for a file named {MPCORB_XEPHEM} inside this directory to use.",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=2e4,
+        help="The chunk size for multiprocessing of the search. Avoid setting too low (<<1e4) "
+        "to avoid large setup time costs. Set to 0 to disable multiprocessing.",
+    )
+    args_dict = vars(parser.parse_args(args))
+    try:
+        epoch = float(args_dict["epoch"])
+    except ValueError:
+        epoch = datetime.fromisoformat(args_dict["epoch"])
+
+    if args_dict["update_mpcorb"]:
+        xephem_filepath = update_catalogue(
+            args_dict["include_nea"], args_dict["include_comets"], args_dict["cat_dir"]
+        )
+    else:
+        xephem_dir = args_dict["cat_dir"] or tempfile.gettempdir()
+        xephem_filepath = os.path.join(xephem_dir, MPCORB_XEPHEM)
+
+    results = minor_planet_check(
+        args_dict["ra"],
+        args_dict["dec"],
+        epoch,
+        args_dict["radius"],
+        xephem_filepath,
+        args_dict["max_mag"],
+        chunk_size=args_dict["chunk_size"],
+    )
+    if len(results):
+        results = Table(
+            rows=results, names=["name", "ra", "dec", "separation", "mag", "xephem_str"]
+        )
+        del results["xephem_str"]
+        return results
+    else:
+        logging.info("No minor planets found.")
