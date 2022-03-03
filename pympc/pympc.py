@@ -197,6 +197,7 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
     for xephem_db, mode in zip((xephem_db_e, xephem_db_h, xephem_db_p), ("w", "a", "a")):
         xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format="%.8f", mode=mode)
     logger.info("mpcorb xephem csv database saved to {}".format(xephem_csv_path))
+    return xephem_csv_path
 
 
 def minor_planet_check(
