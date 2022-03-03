@@ -299,7 +299,8 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     if xephem_filepath is None:
         xephem_filepath = os.path.join(tempfile.gettempdir(), MPCORB_XEPHEM)
     try:
-        xephem_db = open(xephem_filepath).readlines()
+        with open(xephem_filepath, "r") as f:
+            xephem_db = f.readlines()
     except FileNotFoundError:
         logger.exception(
             "xephem db csv file not found at {}. run pympc.update_catalogue() "
