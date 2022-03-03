@@ -499,6 +499,6 @@ def _console_script(args=None):
             rows=results, names=["name", "ra", "dec", "separation", "mag", "xephem_str"]
         )
         del results["xephem_str"]
-        return results
+        return results.pprint_all()
     else:
         logging.info("No minor planets found.")
