@@ -13,7 +13,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/lyalpha/pympc",
-    entry_points={"console_scripts": ["minor_planet_check=pympc.pympc:_minor_planet_check"]},
+    entry_points={"console_scripts": ["minor_planet_check=pympc.pympc:_console_script"]},
     classifiers=["Programming Language :: Python :: 3"],
     python_requires=">=3.6",
 )
