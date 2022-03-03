@@ -297,7 +297,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
         xephem db-formatted string of matched body)
     """
     if xephem_filepath is None:
-        xephem_filepath = os.path.join(tempfile.tempdir, MPCORB_XEPHEM)
+        xephem_filepath = os.path.join(tempfile.gettempdir(), MPCORB_XEPHEM)
     try:
         xephem_db = open(xephem_filepath).readlines()
     except FileNotFoundError:
