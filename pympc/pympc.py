@@ -3,11 +3,11 @@ import gzip
 import logging
 import os
 import shutil
+import tempfile
 import urllib.request
 from itertools import repeat
 from math import pi
 from multiprocessing import Pool
-from tempfile import mkstemp
 from time import time
 
 import astropy.units as u
@@ -39,7 +39,7 @@ MPCORB_XEPHEM = "mpcorb_xephem.csv"
 DAY_IN_YEAR = 365.25689
 
 
-def update_catalogue(include_nea=True, include_comets=True, cat_dir="/tmp"):
+def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanup=True):
     """
     download MPC asteroid orbit elements and save as csv database readable by xephem
 
@@ -55,47 +55,57 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir="/tmp"):
     include_comets : boolean, optional
         see `include_nea`, but for the comet catalogue.
     cat_dir : str, optional
-        the directory in which to store downloaded catalogues. this will also
-        be the location of the formatted xephem databases.
+        the directory in which to store downloaded catalogues and the
+        formatted xephem databases. if `None` will default to the user's
+        tmp directory.
+    cleanup : boolean, optional
+        if `True` will remove the downloaded catalogues after they are
+        processed into the xephem database csv file.
     """
 
-    def download_cat(url, path):
-        fd, temp_path = mkstemp(suffix=os.path.splitext(path)[1])
+    def download_cat(url, filename):
+        fd, temp_filepath = tempfile.mkstemp(suffix=os.path.splitext(filename)[1], dir=cat_dir)
         response = urllib.request.urlopen(url)
-        with open(temp_path, "wb") as f:
+        with open(temp_filepath, "wb") as f:
             f.write(gzip.decompress(response.read()))
-        shutil.move(temp_path, path)
-        return path
+        filepath = os.path.join(os.path.dirname(temp_filepath), filename)
+        shutil.move(temp_filepath, filepath)
+        return filepath
 
-    cat = ["mpcorb"]
-    for include, additional_cat in ((include_nea, "nea"), (include_comets, "comets")):
+    cats_to_process = [("mpcorb", 0)]
+    for include, additional_cat in [(include_nea, ("nea", 1)), (include_comets, ("comets", 2))]:
         if include:
-            cat.insert(0, additional_cat)
-    nea_filepath = None
-    comet_filepath = None
+            cats_to_process.insert(0, additional_cat)
 
-    for cat_name in cat:
+    cat_filepaths = [None, None, None]
+    for cat_name, idx in cats_to_process:
         logger.info("processing {} catalogue".format(cat_name))
         catalogue = CATALOGUES[cat_name]
-        cat_filepath = os.path.join(cat_dir, catalogue["filename"])
+        cat_filename = catalogue["filename"]
         cat_url = catalogue["url"]
         logger.info("downloading from {}".format(cat_url))
-        cat_filepath = download_cat(cat_url, cat_filepath)
+        cat_filepath = download_cat(cat_url, cat_filename)
         logger.info("saved as {}".format(cat_filepath))
 
-        if cat_name == "nea":
-            nea_filepath = cat_filepath
-        elif cat_name == "comets":
-            comet_filepath = cat_filepath
-        elif cat_name == "mpcorb":
-            _generate_mpcorb_xephem(
-                cat_filepath=cat_filepath, nea_filepath=nea_filepath, comet_filepath=comet_filepath
-            )
+        cat_filepaths[idx] = cat_filepath
+
+    xephem_csv_filepath = _generate_mpcorb_xephem(
+        mpcorb_filepath=cat_filepaths[0],
+        nea_filepath=cat_filepaths[1],
+        comet_filepath=cat_filepaths[2],
+    )
+    if cleanup:
+        for cat_filepath in cat_filepaths:
+            if cat_filepath is not None:
+                logging.info(f"removing {cat_filepath}")
+                os.remove(cat_filepath)
+    return xephem_csv_filepath
 
 
-def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None, comet_filepath=None):
-    logger.info("reading {}".format(cat_filepath))
-    mpcorb_json = pd.read_json(cat_filepath)
+def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=None):
+    logger.info("creating xephem format database from mpcorb catalogue")
+    logger.info("reading {}".format(mpcorb_filepath))
+    mpcorb_json = pd.read_json(mpcorb_filepath)
 
     if comet_filepath:
         logger.info("reading {}".format(comet_filepath))
@@ -178,7 +188,7 @@ def _generate_mpcorb_xephem(cat_filepath, nea_filepath=None, comet_filepath=None
     xephem_db_p.loc[:, "PeriEpoch"] = Time(xephem_db_p.PeriEpoch, format="jd").decimalyear
 
     logger.info("writing mpcorb xephem database")
-    xephem_csv_path = os.path.join(os.path.dirname(cat_filepath), MPCORB_XEPHEM)
+    xephem_csv_path = os.path.join(os.path.dirname(mpcorb_filepath), MPCORB_XEPHEM)
     for xephem_db, mode in zip((xephem_db_e, xephem_db_h, xephem_db_p), ("w", "a", "a")):
         xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format="%.8f", mode=mode)
     logger.info("mpcorb xephem csv database saved to {}".format(xephem_csv_path))
@@ -287,7 +297,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
         xephem db-formatted string of matched body)
     """
     if xephem_filepath is None:
-        xephem_filepath = os.path.join("/tmp", MPCORB_XEPHEM)
+        xephem_filepath = os.path.join(tempfile.tempdir, MPCORB_XEPHEM)
     try:
         xephem_db = open(xephem_filepath).readlines()
     except FileNotFoundError:
