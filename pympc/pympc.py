@@ -20,9 +20,6 @@ import pandas as pd
 from astropy.table import Table
 from astropy.time import Time
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s  %(levelname)-10s %(processName)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 CATALOGUES = {
