@@ -5,6 +5,8 @@ import os
 import shutil
 import tempfile
 import urllib.request
+import warnings
+from datetime import datetime
 from itertools import repeat
 from math import pi
 from multiprocessing import Pool
@@ -12,6 +14,7 @@ from time import time
 
 import astropy.units as u
 import ephem
+import erfa
 import numpy as np
 import pandas as pd
 from astropy.time import Time
@@ -89,11 +92,14 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanu
 
         cat_filepaths[idx] = cat_filepath
 
-    xephem_csv_filepath = _generate_mpcorb_xephem(
-        mpcorb_filepath=cat_filepaths[0],
-        nea_filepath=cat_filepaths[1],
-        comet_filepath=cat_filepaths[2],
-    )
+    with warnings.catch_warnings():
+        # Catch possible dubious year warnings from erfa
+        warnings.filterwarnings("ignore", category=erfa.ErfaWarning)
+        xephem_csv_filepath = _generate_mpcorb_xephem(
+            mpcorb_filepath=cat_filepaths[0],
+            nea_filepath=cat_filepaths[1],
+            comet_filepath=cat_filepaths[2],
+        )
     if cleanup:
         for cat_filepath in cat_filepaths:
             if cat_filepath is not None:
@@ -160,7 +166,6 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
         # append the catalogue rows onto this cut-down mpcorb
         mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
-    logger.info("creating xephem format database from mpcorb catalogue")
     # Where we don't have a "Name" for the object, we use the "Prinicpal_desig"
     mpcorb_json["Name"] = mpcorb_json["Name"].mask(pd.isnull, mpcorb_json["Principal_desig"])
     # write a minimal version of the catalogue in xephem format - column order is important
@@ -247,7 +252,7 @@ def minor_planet_check(
 
     if isinstance(epoch, (int, float)):
         epoch = Time(epoch, format="mjd")
-    elif isinstance(epoch, datetime.datetime):
+    elif isinstance(epoch, datetime):
         epoch = Time(epoch)
     if isinstance(epoch, Time):
         decimalyear = epoch.decimalyear
@@ -336,7 +341,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     return results
 
 
-def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag=None):
+def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
     """
     performs a cone search around a `ra`, `dec` position at `date` to locate any entries
     in the provided `xephem_db` entries that match within `search_radius`.
