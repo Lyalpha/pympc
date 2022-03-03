@@ -199,7 +199,7 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
 
 
 def minor_planet_check(
-    ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, chunk_size=2e4, quiet=False
+    ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, chunk_size=2e4
 ):
     """
     perform a minor planet check around a search position
@@ -226,8 +226,6 @@ def minor_planet_check(
     chunk_size : int, optional
         the chunk size for multiprocessing of the search. avoid setting too low
         (<<1e4) to avoid large setup time costs. set to 0 to disable multiprocessing.
-    quiet : bool, optional
-        whether to display informational logging
 
     Returns
     -------
@@ -236,8 +234,6 @@ def minor_planet_check(
         ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
         xephem db-formatted string of matched body)
     """
-    if quiet:
-        logger.setLevel(logging.WARNING)
     coo = []
     for c, name in zip((ra, dec), ("ra", "dec")):
         if isinstance(c, (int, float)):
@@ -460,7 +456,22 @@ def _main_pympc(args=None):
         help="The chunk size for multiprocessing of the search. Avoid setting too low (<<1e4) "
         "to avoid large setup time costs. Set to 0 to disable multiprocessing.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase the verbosity of logging. `-v` for INFO level messages, "
+        "`-vv` for DEBUG. Default level is WARNING.",
+    )
     args_dict = vars(parser.parse_args(args))
+
+    # Set up logging for command-line usage
+    log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+    log_level = log_levels[min(len(log_levels) - 1, args_dict["verbose"])]
+    fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    logging.basicConfig(format=fmt, level=log_level)
+
     try:
         epoch = float(args_dict["epoch"])
     except ValueError:
