@@ -38,6 +38,7 @@ CATALOGUES = {
 }
 MPCORB_XEPHEM = "mpcorb_xephem.csv"
 DAY_IN_YEAR = 365.25689
+RADTODEG = 180.0 / pi
 
 
 def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanup=True):
@@ -364,17 +365,16 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
         xephem db-formatted string of matched body)
     """
     results = []
-    radtodeg = 180.0 / pi
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
-        separation = 3600.0 * radtodeg * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
+        separation = 3600.0 * RADTODEG * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation <= search_radius and mp.mag <= max_mag:
             results.append(
                 [
                     _get_minor_planet_name(xephem_str),
-                    float(mp.a_ra) * radtodeg,
-                    float(mp.a_dec) * radtodeg,
+                    float(mp.a_ra) * RADTODEG,
+                    float(mp.a_dec) * RADTODEG,
                     separation,
                     mp.mag,
                     xephem_str.strip(),
