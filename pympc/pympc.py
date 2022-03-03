@@ -388,7 +388,7 @@ def _get_minor_planet_name(xephem_str):
     return xephem_str.split(",")[0]
 
 
-def _main_pympc(args=None):
+def _console_script(args=None):
     """Console script to run minor planet checking, optionally downloading catalogues too."""
     parser = argparse.ArgumentParser(
         description="Minor planet checking", formatter_class=argparse.ArgumentDefaultsHelpFormatter,
