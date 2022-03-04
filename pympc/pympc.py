@@ -262,9 +262,15 @@ def minor_planet_check(
             logger.error("could not convert search_radius {} to arcseconds".format(search_radius))
             raise
 
-    return _minor_planet_check(
+    results = _minor_planet_check(
         coo[0], coo[1], decimalyear, search_radius, xephem_filepath, max_mag, c=chunk_size
     )
+    if len(results) == 0:
+        logger.info("no minor planets found")
+        return
+
+    results = Table(rows=results, names=["name", "ra", "dec", "separation", "mag", "xephem_str"])
+    return results
 
 
 def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, c=2e4):
@@ -310,7 +316,7 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     if max_mag is None:
         max_mag = np.inf
     logger.info(
-        "searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} at MJD = {:.5f}".format(
+        "searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} rad at MJD = {:.5f}".format(
             search_radius, ra, dec, Time(epoch, format="decimalyear").mjd
         )
     )
@@ -494,9 +500,6 @@ def _console_script(args=None):
         chunk_size=args_dict["chunk_size"],
     )
     if len(results):
-        results = Table(
-            rows=results, names=["name", "ra", "dec", "separation", "mag", "xephem_str"]
-        )
         del results["xephem_str"]
         return results.pprint_all()
     else:

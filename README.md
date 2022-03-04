@@ -12,6 +12,7 @@ or download/clone source and:
 `python setup.py install`
 
 ### Setup
+
 First we need to import the package and grab the orbit element catalogue. This must be done at least 
 once prior to any searches and can be run to overwrite the catalogues with the latest versions. 
 The default call signature is shown.
@@ -50,6 +51,8 @@ search_radius = 5 * u.arcmin
 pympc.minor_planet_check(ra, dec, epoch, search_radius)
 ```
 
+Results are returned as an astropy table.
+
 The above example uses explicit quantities, but if passed simple float arguments, and the program will assume the 
 units (see comments below and `pympc.minor_planet_check()` docstring for unit assumptions).
 ```python
@@ -72,7 +75,8 @@ The check should take of order a second or two, depending on multiprocessing cap
 
 The private function which actually performs the calculation is `_minor_planet_check()` (note leading underscore).
 This can be called directly, to avoid the overhead associated with converting input arguments in `minor_planet_check()`,
-if you provide them directly as required (see `_minor_planet_check()` docstring).
+if you provide them directly as required (see `_minor_planet_check()` docstring). Note that in this case a list of 
+tuples is returned, rather than an astropy table.
 
 By default the program will calculate positions of bodies in the catalogue multiprocessed. To switch this off set
 `chunk_size = 0`, i.e.:
