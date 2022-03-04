@@ -3,7 +3,7 @@ pympc
 
 Perform checks for the presence of minor bodies at astronomical locations for a given epoch.
 
-### Installation
+## Installation
 
 `pip install pympc`
 
@@ -11,7 +11,7 @@ or download/clone source and:
 
 `python setup.py install`
 
-### Setup
+## Setup
 
 First we need to import the package and grab the orbit element catalogue. This must be done at least 
 once prior to any searches and can be run to overwrite the catalogues with the latest versions. 
@@ -35,11 +35,11 @@ the filepath to this file. By default the file will be saved in the user's tempo
 be changed by setting the `cat_dir` argument.
 
 
-### Usage 
+## Usage 
 
 Having downloaded the catalogue (see [Setup](#Setup)), we can now search for minor bodies at a given location.
 
-#### Interactive searching
+### Interactive searching
 Within an interpretor session, define a search location, epoch and radius and run the search.
 ```python
 import astropy.units as u
@@ -48,7 +48,8 @@ ra = 230.028 * u.deg
 dec = -11.774 * u.deg
 epoch = Time("2019-01-01T00:00")
 search_radius = 5 * u.arcmin
-pympc.minor_planet_check(ra, dec, epoch, search_radius)
+observatory = 950  # observatory code for La Palma
+pympc.minor_planet_check(ra, dec, epoch, search_radius, observatory=observatory)
 ```
 
 Results are returned as an astropy table.
@@ -60,17 +61,26 @@ ra = 230.028  # assumed degrees
 dec = -11.774  # assumed degrees
 epoch = 58484.  # assumed MJD
 search_radius = 30  # assumed arcseconds
-pympc.minor_planet_check(ra, dec, epoch, search_radius)
+observatory = 950  # observatory code for La Palma
+pympc.minor_planet_check(ra, dec, epoch, search_radius, observatory=observatory)
 ```
 
 By default, the search will use a default filepath for the catalogue. if the file has been moved - or a 
 custom `cat_dir` was passed to `pympc.update_catalogue()` - then the filepath can be specified.
 
 ```python
-pympc.minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/mpcorb_xphem.csv')
+pympc.minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/mpcorb_xphem.csv', observatory=observatory)
 ```
 
-### Speed and multiprocessing
+### Defining an observer
+
+By default, if the `observatory` argument is not passed, the program will return geocentric coordinates. However, for
+relatively nearby objects like minor bodies, there can be signicant parallax introduced by the location of an observer
+on the Earth's surface. For this reason it is crucial to pass either an 
+[observatory code](https://www.minorplanetcenter.net/iau/lists/ObsCodes.html) or a tuple containing the observatory
+information. See the documentation for `pympc.minor_planet_check()` for more details.
+
+## Speed and multiprocessing
 The check should take of order a second or two, depending on multiprocessing capabilities.
 
 The private function which actually performs the calculation is `_minor_planet_check()` (note leading underscore).
@@ -85,7 +95,7 @@ By default the program will calculate positions of bodies in the catalogue multi
 pympc.minor_planet_check(ra, dec, epoch, search_radius, chunk_size=0)
 ```
 
-#### Console script searching
+### Console script searching
 
 Installation of the package will create a `minor_planet_check` script, which can be accessed
 from the command line. The options follow the same as the interactive searching, and results
@@ -94,26 +104,28 @@ are displayed as a table. For help on the command line use:
 minor_planet_check --help
 ```
 
-### Limitations
+> It is not currently possible to pass a custom set of observatory coordinates to the script - 
+> an existing observatory code must be passed.
+
+## Limitations
 The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the 
 [pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. Thus, 
 the accuracy of the position is dependent on the time difference between the epoch of the orbit elements and the epoch 
 at which the search is being performed. Epoch differences between orbital elements calculation and observation of 
-around a month or two should be fine for typical positional accuracies of a few arcsecond for most minor bodies - note
-however that a small number of bodies (those undergoing strong perturbations) may be quite inaccurate (arcminutes).
+around a month or two should be fine for typical positional accuracies of less than a few arcsecond for the vast
+majority of minor bodies. Note, however, that a small number of bodies (those undergoing strong perturbations and
+close to Earth) maybe quite inaccurate (arcminutes).
 
-The `xephem` package can only provide geocentric astrometric positions. as such, parallax effects for near-earth 
-bodies will be significant, in addition to the lack of perturbation calculations above.
-
-Currently the epoch of the orbit elements is visible in the xephem db strings returned by `minor_planet_check()` as a
-decimal year format (e.g. ..,2019.317808,..). Some diagnostic information and warning when using large time differences
-is to be implemented.
+The `xephem` package can only provide geocentric astrometric positions. `pympc` will calculate the topocentric 
+correction as a post-processing to the initial position. The simple geometric correction applied is more than sufficient
+for the overwhelming majority of minor bodies, but for some near earth objects the correction can be large and the 
+relatively simple treatment by `pympc` may not be sufficient.
 
 The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the accuracy 
 of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff to allow 
 for this.
 
-### acknowledgements
+### Acknowledgements
 This package makes use of data and/or services provided by the International Astronomical Union's 
 [Minor Planet Center](https://www.minorplanetcenter.net).
 
