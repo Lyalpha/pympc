@@ -599,6 +599,14 @@ def _console_script(args=None):
         help="The maximum magnitude of minor planets to include in the search.",
     )
     parser.add_argument(
+        "-o",
+        "--observatory",
+        type=str,
+        default="500",
+        help="The three-character observatory code used to define the location of the observer."
+        "The default returns geocentric positions.",
+    )
+    parser.add_argument(
         "-cat-dir",
         type=str,
         default=None,
@@ -649,6 +657,7 @@ def _console_script(args=None):
         args_dict["radius"],
         xephem_filepath,
         args_dict["max_mag"],
+        args_dict["observatory"],
         chunk_size=args_dict["chunk_size"],
     )
     if len(results):
