@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2022-03
 
  - Changelog added!
+ - Added topocentric corrections.
  - Uses the user's system temporary directory by default for downloaded catalogues
    instead of hardcoded `/tmp`.
  - Add option to `cleanup` argument to `update_catalogue()` to remove downloaded 
