@@ -2,13 +2,13 @@ import argparse
 import gzip
 import logging
 import os
+import pkg_resources
 import shutil
 import tempfile
 import urllib.request
 import warnings
 from datetime import datetime
 from itertools import repeat
-from math import pi
 from multiprocessing import Pool
 from time import time
 
@@ -37,8 +37,12 @@ CATALOGUES = {
     },
 }
 MPCORB_XEPHEM = "mpcorb_xephem.csv"
+OBS_CODES_ARRAY_PATH = pkg_resources.resource_filename(__name__, "data/obs_codes.npy")
 DAY_IN_YEAR = 365.25689
-RADTODEG = 180.0 / pi
+RADTODEG = 180.0 / np.pi
+DEGTORAD = 1 / RADTODEG
+# angle subtended by Earth's equatorial radius at a distance of 1 AU in radians
+SOLAR_PARALLAX = 8.794143 / 3600.0 / RADTODEG
 
 
 def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanup=True):
@@ -198,8 +202,25 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
     return xephem_csv_path
 
 
+def _get_observatory_data(obs_code):
+    """Return the longitude, rho_sin_phi, rho_cos_phi of an observatory"""
+    obs_code_array = np.load(OBS_CODES_ARRAY_PATH)
+    obs_data = obs_code_array[obs_code_array["Code"] == obs_code]
+    if len(obs_data) != 1:
+        raise ValueError(f"Observatory code {obs_code} not uniquely found")
+    obs_data = obs_data[0]
+    return obs_data[1], obs_data[2], obs_data[3]
+
+
 def minor_planet_check(
-    ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, chunk_size=2e4
+    ra,
+    dec,
+    epoch,
+    search_radius,
+    xephem_filepath=None,
+    max_mag=None,
+    observatory=(0.0, 0.0, 0.0),
+    chunk_size=2e4,
 ):
     """
     perform a minor planet check around a search position
@@ -223,6 +244,11 @@ def minor_planet_check(
         defaults to searching for the mpcorb xephem db in `/tmp/`
     max_mag : float, optional
         maximum magnitude of minor planet matches to return.
+    observatory : str or int or tuple, optional
+        the observatory to use for calculating topocentric corrections to
+        the minor body positions. This can be given as the observatory code
+        (see notes) or a tuple of (longitude [degrees], rho_cos_phi, rho_sin_phi). The
+        default returns geometric positions.
     chunk_size : int, optional
         the chunk size for multiprocessing of the search. avoid setting too low
         (<<1e4) to avoid large setup time costs. set to 0 to disable multiprocessing.
@@ -233,11 +259,16 @@ def minor_planet_check(
         a list of matching minor planet entries. each list entry is a tuple of the format
         ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
         xephem db-formatted string of matched body)
+
+    Notes
+    -----
+    If passing an observatory code it should match one defined in the Minor Planet Center
+    list of obseratory codes (see https://minorplanetcenter.net/iau/lists/ObsCodes.html).
     """
     coo = []
     for c, name in zip((ra, dec), ("ra", "dec")):
         if isinstance(c, (int, float)):
-            coo.append(c * pi / 180.0)
+            coo.append(c * DEGTORAD)
         else:
             try:
                 coo.append(c.to(u.radian).value)
@@ -262,8 +293,27 @@ def minor_planet_check(
             logger.error("could not convert search_radius {} to arcseconds".format(search_radius))
             raise
 
+    if isinstance(observatory, int):
+        observatory = str(observatory)
+    if isinstance(observatory, str):
+        longitude, rho_cos_phi, rho_sin_phi = _get_observatory_data(observatory)
+    elif isinstance(observatory, tuple):
+        longitude, rho_cos_phi, rho_sin_phi = observatory
+    else:
+        logger.error(f"unrecognised format for observatory {observatory}")
+        raise ValueError
+
     results = _minor_planet_check(
-        coo[0], coo[1], decimalyear, search_radius, xephem_filepath, max_mag, c=chunk_size
+        coo[0],
+        coo[1],
+        decimalyear,
+        search_radius,
+        xephem_filepath,
+        max_mag,
+        longitude,
+        rho_cos_phi,
+        rho_sin_phi,
+        chunk_size,
     )
     if len(results) == 0:
         logger.info("no minor planets found")
@@ -273,7 +323,18 @@ def minor_planet_check(
     return results
 
 
-def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max_mag=None, c=2e4):
+def _minor_planet_check(
+    ra,
+    dec,
+    epoch,
+    search_radius,
+    xephem_filepath=None,
+    max_mag=None,
+    longitude=0.0,
+    rho_cos_phi=0.0,
+    rho_sin_phi=0.0,
+    c=2e4,
+):
     """
     actually runs the minor planet check with strict format of arguments
 
@@ -292,6 +353,12 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
         defaults to searching for the mpcorb xephem db in `/tmp/`
     max_mag : float, optional
         maximum magnitude of minor planet matches to return.
+    longitude: float
+        Longitude of observer in degrees.
+    rho_cos_phi: float
+        Parallax constant for cosine of the latitude of the observer.
+    rho_sin_phi: float
+        Parallax constant for sine of the latitude of the observer.
     c : int, optional
         chunk size when multiprocessing. set to 0 to disable multiprocessing.
 
@@ -323,7 +390,9 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     date = ephem.date(str(epoch))
     t0 = time()
     if c == 0:
-        results = _cone_search_xephem_entries(xephem_db, (ra, dec), date, search_radius, max_mag)
+        results = _cone_search_xephem_entries(
+            xephem_db, (ra, dec), date, search_radius, max_mag, longitude, rho_cos_phi, rho_sin_phi
+        )
     else:
         xephem_db_chunks = np.array_split(xephem_db, max(len(xephem_db) // c, 1))
         with Pool() as pool:
@@ -335,6 +404,9 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
                     repeat(date),
                     repeat(search_radius),
                     repeat(max_mag),
+                    repeat(longitude),
+                    repeat(rho_cos_phi),
+                    repeat(rho_sin_phi),
                 ),
             )
         # flatten our list of lists
@@ -344,7 +416,9 @@ def _minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath=None, max
     return results
 
 
-def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
+def _cone_search_xephem_entries(
+    xephem_db, coo, date, search_radius, max_mag, longitude, rho_cos_phi, rho_sin_phi,
+):
     """
     performs a cone search around a `ra`, `dec` position at `date` to locate any entries
     in the provided `xephem_db` entries that match within `search_radius`.
@@ -361,6 +435,12 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
         search radius in arcseconds
     max_mag : float
         maximum magnitude of minor planet matches to return.
+    longitude: float
+        Longitude of observer in degrees.
+    rho_cos_phi: float
+        Parallax constant for cosine of the latitude of the observer.
+    rho_sin_phi: float
+        Parallax constant for sine of the latitude of the observer.
 
     Returns
     -------
@@ -375,17 +455,82 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
         mp.compute(date)
         separation = 3600.0 * RADTODEG * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
         if separation <= search_radius and mp.mag <= max_mag:
+            ra, dec = float(mp.a_ra), float(mp.a_dec)
+            if any([longitude, rho_cos_phi, rho_sin_phi]):
+                # Perform a topocentric correction
+                ra, dec = equitorial_geocentric_to_topocentric(
+                    mp.a_ra,
+                    mp.a_dec,
+                    mp.earth_distance,
+                    date.datetime(),
+                    longitude,
+                    rho_cos_phi,
+                    rho_sin_phi,
+                )
+                separation = 3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
+                if separation > search_radius:
+                    continue
             results.append(
                 [
                     _get_minor_planet_name(xephem_str),
-                    float(mp.a_ra) * RADTODEG,
-                    float(mp.a_dec) * RADTODEG,
+                    ra * RADTODEG,
+                    dec * RADTODEG,
                     separation,
                     mp.mag,
                     xephem_str.strip(),
                 ]
             )
     return results
+
+
+def equitorial_geocentric_to_topocentric(
+    ra_geo, dec_geo, dist_au, epoch, longitude, rho_cos_phi, rho_sin_phi,
+):
+    """
+    Convert equitorial geocentric coordinates to topocentric coordinates.
+
+    Parameters
+    ----------
+    ra_geo, dec_geo: float
+        Geocentric right ascension and declination of the object in radians.
+    dist_au: float
+        Distance of the object in AU.
+    epoch: datetime.datetime
+        Date and time of observation.
+    longitude: float
+        Longitude of observer in degrees.
+    rho_cos_phi:
+        Parallax constant for cosine of the latitude of the observer.
+    rho_sin_phi:
+        Parallax constant for sine of the latitude of the observer.
+
+    Returns
+    -------
+    topo_ra, topo_dec: float
+        Topocentric right ascension and declination of the object in radians.
+
+    Notes
+    -----
+    See https://rdrr.io/github/Susarro/arqastwb/src/R/coordinates.R#sym-geocentric2topocentric
+    """
+
+    ra_geo = ra_geo
+    dec_geo = dec_geo
+    local_sidereal_time = Time(epoch).sidereal_time("apparent", longitude=longitude).radian
+    local_hour_angle = local_sidereal_time - ra_geo
+
+    parallax = SOLAR_PARALLAX / dist_au
+    incrra = np.arctan2(
+        -(rho_cos_phi * np.sin(parallax) * np.sin(local_hour_angle)),
+        np.cos(dec_geo) - rho_cos_phi * np.sin(parallax) * np.cos(local_hour_angle),
+    )
+    ra_topo = ra_geo + incrra
+    dec_topo = np.arctan2(
+        np.cos(incrra) * (np.sin(dec_geo) - rho_sin_phi * np.sin(parallax)),
+        np.cos(dec_geo) - rho_cos_phi * np.sin(parallax) * np.cos(local_hour_angle),
+    )
+
+    return ra_topo, dec_topo
 
 
 def _get_minor_planet_name(xephem_str):

@@ -16,4 +16,6 @@ setuptools.setup(
     entry_points={"console_scripts": ["minor_planet_check=pympc.pympc:_console_script"]},
     classifiers=["Programming Language :: Python :: 3"],
     python_requires=">=3.6",
+    include_package_data=True,
+    package_data={"": ["data/obs_codes.npy"]},
 )
