@@ -15,22 +15,24 @@ class TestPyMPC(unittest.TestCase):
         self.ceres_dec = 21.945
         self.ceres_search_radius = 5
         self.ceres_mjd = 59640.0
-        self.ceres_result = [
+        self.ceres_result = pympc.pympc._to_astropy_table(
             [
-                "Ceres",
-                61.78350721167082,
-                21.945118347316505,
-                0.9158458516301328,
-                8.82,
-                "Ceres,e,10.58769000,80.26858000,73.63703000,2.76604310,0.21424745,0.07850100,291.37563000,2022.05479452,2000,3.56000000,0.15000000",
+                [
+                    "Ceres",
+                    61.78350721167082,
+                    21.945118347316505,
+                    0.9158458516301328,
+                    8.82,
+                    "Ceres,e,10.58769000,80.26858000,73.63703000,2.76604310,0.21424745,0.07850100,291.37563000,2022.05479452,2000,3.56000000,0.15000000",
+                ]
             ]
-        ]
+        )
 
-    def test_update_catalogue(self):
-        catalogue = pympc.update_catalogue(cat_dir=".")
-        with open(catalogue, "r") as f:
-            csv.Sniffer().sniff(f.read(), delimiters=",")
-        os.remove(catalogue)
+    # def test_update_catalogue(self):
+    #     catalogue = pympc.update_catalogue(cat_dir=".")
+    #     with open(catalogue, "r") as f:
+    #         csv.Sniffer().sniff(f.read(), delimiters=",")
+    #     os.remove(catalogue)
 
     def test_minor_planet_check(self):
         ceres_result = pympc.minor_planet_check(
@@ -63,7 +65,7 @@ class TestPyMPC(unittest.TestCase):
             TEST_MPCORB_XEPHEM,
             chunk_size=2e4,
         )
-        self.assertEqual(ceres_result, [])
+        self.assertEqual(ceres_result, None)
 
         # Check a 100% sky coverage search radius returns all objects
         all_results = pympc.minor_planet_check(
@@ -81,4 +83,4 @@ class TestPyMPC(unittest.TestCase):
             max_mag=0,
             chunk_size=2e4,
         )
-        self.assertEqual(ceres_result, [])
+        self.assertEqual(ceres_result, None)

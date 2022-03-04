@@ -13,5 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    catalogues after the xephem database is created (default is `True`).
  - The filepath of the created xephem database is now returned from `update_catalogue()`.
  - Added command line interface via `minor_planet_check`, once package is installed.
- - Results from `pympc.minor_planet_check()` are now formatted in an astropy table.
+ - Results from `pympc.minor_planet_check()` are now formatted in an astropy table and 
+   an empty search returns `None` instead of an empy list.
  - Added first tests.

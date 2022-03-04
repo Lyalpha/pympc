@@ -269,7 +269,7 @@ def minor_planet_check(
         logger.info("no minor planets found")
         return
 
-    results = Table(rows=results, names=["name", "ra", "dec", "separation", "mag", "xephem_str"])
+    results = _to_astropy_table(results)
     return results
 
 
@@ -391,6 +391,13 @@ def _cone_search_xephem_entries(xephem_db, coo, date, search_radius, max_mag):
 def _get_minor_planet_name(xephem_str):
     """Return the name of a minor planet from an xephem csv string"""
     return xephem_str.split(",")[0]
+
+
+def _to_astropy_table(results):
+    """Convert a list of xephem results to an astropy table"""
+    names = ["name", "ra", "dec", "separation", "mag", "xephem_str"]
+    table = Table(rows=results, names=names)
+    return table
 
 
 def _console_script(args=None):
