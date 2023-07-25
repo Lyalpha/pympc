@@ -112,9 +112,11 @@ The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xe
 [pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. Thus, 
 the accuracy of the position is dependent on the time difference between the epoch of the orbit elements and the epoch 
 at which the search is being performed. Epoch differences between orbital elements calculation and observation of 
-around a month or two should be fine for typical positional accuracies of less than a few arcsecond for the vast
+around a month or two are fine for typical positional accuracies of less than a few arcsecond for the vast
 majority of minor bodies. Note, however, that a small number of bodies (those undergoing strong perturbations and
-close to Earth) maybe quite inaccurate (arcminutes).
+close to Earth) maybe quite inaccurate (arcminutes). A fuller analysis is given in [notebooks/positional_accuracy.ipynb](notebooks/positional_accuracy.ipynb).
+
+![histogram showing positional accuracy of pympc vs minor planet center](/notebooks/position_accuracy.png "Histogram showing positional accuracy of `pympc` vs Minor Planet Center")
 
 The `xephem` package can only provide geocentric astrometric positions. `pympc` will calculate the topocentric 
 correction as a post-processing to the initial position. The simple geometric correction applied is more than sufficient
