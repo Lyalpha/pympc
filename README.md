@@ -121,7 +121,11 @@ close to Earth) maybe quite inaccurate (arcminutes). A fuller analysis is given 
 The `xephem` package can only provide geocentric astrometric positions. `pympc` will calculate the topocentric 
 correction as a post-processing to the initial position. The simple geometric correction applied is more than sufficient
 for the overwhelming majority of minor bodies, but for some near earth objects the correction can be large and the 
-relatively simple treatment by `pympc` may not be sufficient.
+relatively simple treatment by `pympc` may not be sufficient. Additionally, in order to find matches in geocentric
+positions prior to applying the topocentric correction, a buffer is added to the search radius - this should capture
+the vast majority of cases where the geocentric position is outside the seach radius but the topocentric position is 
+within it - although no guarantees. To work around this you can artifically inflate your search radius and filter
+yourself afterwards.
 
 The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the accuracy 
 of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff to allow 

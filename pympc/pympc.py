@@ -41,8 +41,9 @@ OBS_CODES_ARRAY_PATH = pkg_resources.resource_filename(__name__, "data/obs_codes
 DAY_IN_YEAR = 365.25689
 RADTODEG = 180.0 / np.pi
 DEGTORAD = 1 / RADTODEG
-# angle subtended by Earth's equatorial radius at a distance of 1 AU in radians
-SOLAR_PARALLAX = 8.794143 / 3600.0 / RADTODEG
+# angle subtended by Earth's equatorial radius at a distance of 1 AU
+SOLAR_PARALLAX_ARCSEC = 8.794143
+SOLAR_PARALLAX_RAD = (SOLAR_PARALLAX_ARCSEC / 3600.0) * DEGTORAD
 
 
 def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanup=True):
@@ -220,7 +221,7 @@ def minor_planet_check(
     xephem_filepath=None,
     max_mag=None,
     observatory=(0.0, 0.0, 0.0),
-    chunk_size=2e4,
+    chunk_size=20000,
 ):
     """
     perform a minor planet check around a search position
@@ -255,10 +256,15 @@ def minor_planet_check(
 
     Returns
     -------
-    results : list of length 4-tuples
-        a list of matching minor planet entries. each list entry is a tuple of the format
-        ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
-        xephem db-formatted string of matched body)
+    results : astropy.table.Table object
+        a table of minor planet matches, with columns:
+            * name - the name of the minor planet
+            * ra - the RA of the minor planet at the given epoch
+            * dec - the Dec of the minor planet at the given epoch
+            * mag - the magnitude of the minor planet as given by the orbital catalogue
+            * separation - the angular separation between the minor planet and the search position in arcseconds
+            * xephem_str - the xephem string for the minor planet
+
 
     Notes
     -----
@@ -382,6 +388,16 @@ def _minor_planet_check(
         raise
     if max_mag is None:
         max_mag = np.inf
+    if any([longitude, rho_cos_phi, rho_sin_phi]):
+        # If we are using topocentric coordinates, there needs to be a small buffer
+        # on searching to ensure the geocentric coordinates returned by xephem contain
+        # all matches within the search radius, once topocentric corrections are applied.
+        # This buffer is roughly the maximal correction for a 1/3 AU distance object. We
+        # incure a slight speed penalty for this, but it is necessary.
+        search_radius_buffer = SOLAR_PARALLAX_ARCSEC * 3
+    else:
+        search_radius_buffer = 0
+
     logger.info(
         "searching for minor planets within {:.2f} arcsec of ra, dec = {:.5f}, {:.5f} rad at MJD = {:.5f}".format(
             search_radius, ra, dec, Time(epoch, format="decimalyear").mjd
@@ -391,7 +407,15 @@ def _minor_planet_check(
     t0 = time()
     if c == 0:
         results = _cone_search_xephem_entries(
-            xephem_db, (ra, dec), date, search_radius, max_mag, longitude, rho_cos_phi, rho_sin_phi
+            xephem_db,
+            (ra, dec),
+            date,
+            search_radius,
+            max_mag,
+            longitude,
+            rho_cos_phi,
+            rho_sin_phi,
+            search_radius_buffer,
         )
     else:
         xephem_db_chunks = np.array_split(xephem_db, max(len(xephem_db) // c, 1))
@@ -407,6 +431,7 @@ def _minor_planet_check(
                     repeat(longitude),
                     repeat(rho_cos_phi),
                     repeat(rho_sin_phi),
+                    repeat(search_radius_buffer),
                 ),
             )
         # flatten our list of lists
@@ -417,7 +442,7 @@ def _minor_planet_check(
 
 
 def _cone_search_xephem_entries(
-    xephem_db, coo, date, search_radius, max_mag, longitude, rho_cos_phi, rho_sin_phi,
+    xephem_db, coo, date, search_radius, max_mag, longitude, rho_cos_phi, rho_sin_phi, buffer
 ):
     """
     performs a cone search around a `ra`, `dec` position at `date` to locate any entries
@@ -441,6 +466,9 @@ def _cone_search_xephem_entries(
         Parallax constant for cosine of the latitude of the observer.
     rho_sin_phi: float
         Parallax constant for sine of the latitude of the observer.
+    buffer: float
+        Buffer to add to search radius to ensure all matches are found even after
+        topocentric corrections are applied.
 
     Returns
     -------
@@ -454,7 +482,8 @@ def _cone_search_xephem_entries(
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
         separation = 3600.0 * RADTODEG * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
-        if separation <= search_radius and mp.mag <= max_mag:
+        # First match geocentric positions against the buffered search radius
+        if separation <= search_radius + buffer and mp.mag <= max_mag:
             ra, dec = float(mp.a_ra), float(mp.a_dec)
             if any([longitude, rho_cos_phi, rho_sin_phi]):
                 # Perform a topocentric correction
@@ -468,6 +497,8 @@ def _cone_search_xephem_entries(
                     rho_sin_phi,
                 )
                 separation = 3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
+                # Apply the search radius check again, here without the buffer since we now have
+                # topocentric coordinates
                 if separation > search_radius:
                     continue
             results.append(
@@ -519,7 +550,7 @@ def equitorial_geocentric_to_topocentric(
     local_sidereal_time = Time(epoch).sidereal_time("apparent", longitude=longitude).radian
     local_hour_angle = local_sidereal_time - ra_geo
 
-    parallax = SOLAR_PARALLAX / dist_au
+    parallax = SOLAR_PARALLAX_RAD / dist_au
     incrra = np.arctan2(
         -(rho_cos_phi * np.sin(parallax) * np.sin(local_hour_angle)),
         np.cos(dec_geo) - rho_cos_phi * np.sin(parallax) * np.cos(local_hour_angle),

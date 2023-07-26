@@ -8,7 +8,7 @@ setuptools.setup(
     author="Joe Lyman",
     description="minor planet checking",
     packages=setuptools.find_packages(),
-    install_requires=["ephem>=3.7.7.1", "astropy>=4.2", "pandas>=1.0", "requests>=2.0"],
+    install_requires=["ephem>=3.7.7.1", "astropy>=4.2", "pandas>=1.0", "pyerfa>=2.0.0.0"],
     license="GNU General Public License v3 (GPLv3)",
     long_description=long_description,
     long_description_content_type="text/markdown",
