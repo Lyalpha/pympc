@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2022-03
+## [1.1.0] - 2022-07-26
+ - A buffer is applied to `search_radius` when cross-matching prior to calculating topocentric positions. This
+   is to prevent missing positional matches that are initially outside the search radius, but for which the topocentric
+   correction brings them within it.
+ - Add `pyerfa` to requirements to catch dubious year warnings
+ - [DOCS] Added notebook quantify the degradation of matching with reference epoch separation 
+
+## [1.0.0] - 2022-03-04
 
  - Changelog added!
  - Added topocentric corrections.
