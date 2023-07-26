@@ -5,4 +5,4 @@ from .pympc import (
     _cone_search_xephem_entries,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
