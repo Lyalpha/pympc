@@ -71,7 +71,9 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanu
     """
 
     def download_cat(url, filename):
-        fd, temp_filepath = tempfile.mkstemp(suffix=os.path.splitext(filename)[1], dir=cat_dir)
+        fd, temp_filepath = tempfile.mkstemp(
+            suffix=os.path.splitext(filename)[1], dir=cat_dir
+        )
         response = urllib.request.urlopen(url)
         with open(temp_filepath, "wb") as f:
             f.write(gzip.decompress(response.read()))
@@ -80,7 +82,10 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanu
         return filepath
 
     cats_to_process = [("mpcorb", 0)]
-    for include, additional_cat in [(include_nea, ("nea", 1)), (include_comets, ("comets", 2))]:
+    for include, additional_cat in [
+        (include_nea, ("nea", 1)),
+        (include_comets, ("comets", 2)),
+    ]:
         if include:
             cats_to_process.insert(0, additional_cat)
 
@@ -132,7 +137,9 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
         ):
             comet_json[column1].fillna(comet_json[column2], inplace=True)
         # set the principal deisg column, used to compare to main mpcorb catalogue
-        comet_json.rename(columns={"Designation_and_name": "Principal_desig"}, inplace=True)
+        comet_json.rename(
+            columns={"Designation_and_name": "Principal_desig"}, inplace=True
+        )
         # semi-major axis
         comet_json["a"] = comet_json["Perihelion_dist"] / (1 - comet_json["e"])
         # mean daily motion
@@ -141,7 +148,11 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
         # epoch (as JD)
         def to_jd(row, year, month, day):
             return (
-                Time("{}-{:02}-{:02}".format(*map(int, (row[year], row[month], row[day]))))
+                Time(
+                    "{}-{:02}-{:02}".format(
+                        *map(int, (row[year], row[month], row[day]))
+                    )
+                )
                 + (row[day] % 1) * u.day
             ).jd
 
@@ -150,7 +161,9 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
         )
         # mean anomoly
         comet_json["PeriEpoch"] = comet_json.apply(
-            to_jd, axis=1, args=("Year_of_perihelion", "Month_of_perihelion", "Day_of_perihelion")
+            to_jd,
+            axis=1,
+            args=("Year_of_perihelion", "Month_of_perihelion", "Day_of_perihelion"),
         )
         dt_days = comet_json["Epoch"] - comet_json["PeriEpoch"]
         comet_json["M"] = comet_json["n"] * dt_days
@@ -166,12 +179,16 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
         nea_json = pd.read_json(nea_filepath)
         logger.info("updating orbits for nea objects")
         # remove rows in mpcorb for which we have an entry in this catalogue
-        mpcorb_json = mpcorb_json[~mpcorb_json["Principal_desig"].isin(nea_json["Principal_desig"])]
+        mpcorb_json = mpcorb_json[
+            ~mpcorb_json["Principal_desig"].isin(nea_json["Principal_desig"])
+        ]
         # append the catalogue rows onto this cut-down mpcorb
         mpcorb_json = pd.concat([mpcorb_json, nea_json], sort=False)
 
     # Where we don't have a "Name" for the object, we use the "Prinicpal_desig"
-    mpcorb_json["Name"] = mpcorb_json["Name"].mask(pd.isnull, mpcorb_json["Principal_desig"])
+    mpcorb_json["Name"] = mpcorb_json["Name"].mask(
+        pd.isnull, mpcorb_json["Principal_desig"]
+    )
     # write a minimal version of the catalogue in xephem format - column order is important
     # eccentric orbits (eccentricity < 1)
     xephem_db_e = mpcorb_json.loc[mpcorb_json.e < 1].reindex(
@@ -182,23 +199,41 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
     xephem_db_e.loc[:, "Epoch"] = Time(xephem_db_e.Epoch, format="jd").decimalyear
     # hyperbolic orbits (eccentricity > 1)
     xephem_db_h = mpcorb_json.loc[mpcorb_json.e > 1].reindex(
-        columns=["Name", "PeriEpoch", "i", "Node", "Peri", "e", "Perihelion_dist", "H", "G"]
+        columns=[
+            "Name",
+            "PeriEpoch",
+            "i",
+            "Node",
+            "Peri",
+            "e",
+            "Perihelion_dist",
+            "H",
+            "G",
+        ]
     )
     xephem_db_h.insert(1, "type", "h")
     xephem_db_h.insert(8, "relative_epoch", 2000)
-    xephem_db_h.loc[:, "PeriEpoch"] = Time(xephem_db_h.PeriEpoch, format="jd").decimalyear
+    xephem_db_h.loc[:, "PeriEpoch"] = Time(
+        xephem_db_h.PeriEpoch, format="jd"
+    ).decimalyear
     # parabolic orbits (eccentricity = 1)
     xephem_db_p = mpcorb_json.loc[mpcorb_json.e == 1].reindex(
         columns=["Name", "PeriEpoch", "i", "Peri", "Perihelion_dist", "Node", "H", "G"]
     )
     xephem_db_p.insert(1, "type", "p")
     xephem_db_p.insert(7, "relative_epoch", 2000)
-    xephem_db_p.loc[:, "PeriEpoch"] = Time(xephem_db_p.PeriEpoch, format="jd").decimalyear
+    xephem_db_p.loc[:, "PeriEpoch"] = Time(
+        xephem_db_p.PeriEpoch, format="jd"
+    ).decimalyear
 
     logger.info("writing mpcorb xephem database")
     xephem_csv_path = os.path.join(os.path.dirname(mpcorb_filepath), MPCORB_XEPHEM)
-    for xephem_db, mode in zip((xephem_db_e, xephem_db_h, xephem_db_p), ("w", "a", "a")):
-        xephem_db.to_csv(xephem_csv_path, header=False, index=False, float_format="%.8f", mode=mode)
+    for xephem_db, mode in zip(
+        (xephem_db_e, xephem_db_h, xephem_db_p), ("w", "a", "a")
+    ):
+        xephem_db.to_csv(
+            xephem_csv_path, header=False, index=False, float_format="%.8f", mode=mode
+        )
     logger.info("mpcorb xephem csv database saved to {}".format(xephem_csv_path))
     return xephem_csv_path
 
@@ -296,7 +331,9 @@ def minor_planet_check(
         try:
             search_radius = search_radius.to(u.arcsec).value
         except (u.UnitConversionError, AttributeError):
-            logger.error("could not convert search_radius {} to arcseconds".format(search_radius))
+            logger.error(
+                "could not convert search_radius {} to arcseconds".format(search_radius)
+            )
             raise
 
     if isinstance(observatory, int):
@@ -442,7 +479,15 @@ def _minor_planet_check(
 
 
 def _cone_search_xephem_entries(
-    xephem_db, coo, date, search_radius, max_mag, longitude, rho_cos_phi, rho_sin_phi, buffer
+    xephem_db,
+    coo,
+    date,
+    search_radius,
+    max_mag,
+    longitude,
+    rho_cos_phi,
+    rho_sin_phi,
+    buffer,
 ):
     """
     performs a cone search around a `ra`, `dec` position at `date` to locate any entries
@@ -481,7 +526,9 @@ def _cone_search_xephem_entries(
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str.strip())
         mp.compute(date)
-        separation = 3600.0 * RADTODEG * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
+        separation = (
+            3600.0 * RADTODEG * (float(ephem.separation((mp.a_ra, mp.a_dec), coo)))
+        )
         # First match geocentric positions against the buffered search radius
         if separation <= search_radius + buffer and mp.mag <= max_mag:
             ra, dec = float(mp.a_ra), float(mp.a_dec)
@@ -496,7 +543,9 @@ def _cone_search_xephem_entries(
                     rho_cos_phi,
                     rho_sin_phi,
                 )
-                separation = 3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
+                separation = (
+                    3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
+                )
                 # Apply the search radius check again, here without the buffer since we now have
                 # topocentric coordinates
                 if separation > search_radius:
@@ -515,7 +564,13 @@ def _cone_search_xephem_entries(
 
 
 def equitorial_geocentric_to_topocentric(
-    ra_geo, dec_geo, dist_au, epoch, longitude, rho_cos_phi, rho_sin_phi,
+    ra_geo,
+    dec_geo,
+    dist_au,
+    epoch,
+    longitude,
+    rho_cos_phi,
+    rho_sin_phi,
 ):
     """
     Convert equitorial geocentric coordinates to topocentric coordinates.
@@ -547,7 +602,9 @@ def equitorial_geocentric_to_topocentric(
 
     ra_geo = ra_geo
     dec_geo = dec_geo
-    local_sidereal_time = Time(epoch).sidereal_time("apparent", longitude=longitude).radian
+    local_sidereal_time = (
+        Time(epoch).sidereal_time("apparent", longitude=longitude).radian
+    )
     local_hour_angle = local_sidereal_time - ra_geo
 
     parallax = SOLAR_PARALLAX_RAD / dist_au
@@ -579,15 +636,20 @@ def _to_astropy_table(results):
 def _console_script(args=None):
     """Console script to run minor planet checking, optionally downloading catalogues too."""
     parser = argparse.ArgumentParser(
-        description="Minor planet checking", formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Minor planet checking",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
-        "ra", type=float, help="Right Ascension of position to check in degrees.",
+        "ra",
+        type=float,
+        help="Right Ascension of position to check in degrees.",
     )
 
     parser.add_argument(
-        "dec", type=float, help="Declination of position to check in degrees.",
+        "dec",
+        type=float,
+        help="Declination of position to check in degrees.",
     )
     parser.add_argument(
         "epoch",
