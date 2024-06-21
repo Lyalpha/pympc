@@ -2,7 +2,6 @@ import argparse
 import gzip
 import logging
 import os
-import pkg_resources
 import shutil
 import tempfile
 import urllib.request
@@ -19,6 +18,8 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 from astropy.time import Time
+
+from pympc.utils import get_observatory_data
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,6 @@ CATALOGUES = {
     },
 }
 MPCORB_XEPHEM = "mpcorb_xephem.csv"
-OBS_CODES_ARRAY_PATH = pkg_resources.resource_filename(__name__, "data/obs_codes.npy")
 DAY_IN_YEAR = 365.25689
 RADTODEG = 180.0 / np.pi
 DEGTORAD = 1 / RADTODEG
@@ -238,16 +238,6 @@ def _generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=N
     return xephem_csv_path
 
 
-def _get_observatory_data(obs_code):
-    """Return the longitude, rho_sin_phi, rho_cos_phi of an observatory"""
-    obs_code_array = np.load(OBS_CODES_ARRAY_PATH)
-    obs_data = obs_code_array[obs_code_array["Code"] == obs_code]
-    if len(obs_data) != 1:
-        raise ValueError(f"Observatory code {obs_code} not uniquely found")
-    obs_data = obs_data[0]
-    return obs_data[1], obs_data[2], obs_data[3]
-
-
 def minor_planet_check(
     ra,
     dec,
@@ -339,7 +329,7 @@ def minor_planet_check(
     if isinstance(observatory, int):
         observatory = str(observatory)
     if isinstance(observatory, str):
-        longitude, rho_cos_phi, rho_sin_phi = _get_observatory_data(observatory)
+        longitude, rho_cos_phi, rho_sin_phi = get_observatory_data(observatory)
     elif isinstance(observatory, tuple):
         longitude, rho_cos_phi, rho_sin_phi = observatory
     else:
@@ -430,7 +420,7 @@ def _minor_planet_check(
         # on searching to ensure the geocentric coordinates returned by xephem contain
         # all matches within the search radius, once topocentric corrections are applied.
         # This buffer is roughly the maximal correction for a 1/3 AU distance object. We
-        # incure a slight speed penalty for this, but it is necessary.
+        # incur a slight speed penalty for this, but it is necessary.
         search_radius_buffer = SOLAR_PARALLAX_ARCSEC * 3
     else:
         search_radius_buffer = 0
