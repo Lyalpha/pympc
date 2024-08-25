@@ -7,7 +7,7 @@ Data files used by `pympc`
 These are observatory codes used by the IAU, published by the Minor Planet Center 
 [here](https://minorplanetcenter.net/iau/lists/ObsCodes.html), last retrieved on Mar 04 2022.
 
-They were pacakges as a numpy binary file for speed of access by `pympc`, using the following
+They were packaged as a numpy binary file for speed of access by `pympc`, using the following
 recipe:
 
 ```python

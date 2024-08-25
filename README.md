@@ -108,26 +108,28 @@ minor_planet_check --help
 > an existing observatory code must be passed.
 
 ## Limitations
-The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the 
+
+1. The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the 
 [pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. Thus, 
 the accuracy of the position is dependent on the time difference between the epoch of the orbit elements and the epoch 
 at which the search is being performed. Epoch differences between orbital elements calculation and observation of 
-around a month or two are fine for typical positional accuracies of less than a few arcsecond for the vast
+a few months or less will provide typical positional accuracies of less than a few arcsecond for the vast
 majority of minor bodies. Note, however, that a small number of bodies (those undergoing strong perturbations and
-close to Earth) maybe quite inaccurate (arcminutes). A fuller analysis is given in [notebooks/positional_accuracy.ipynb](notebooks/positional_accuracy.ipynb).
+close to Earth) may be quite inaccurate (arcminutes). A fuller analysis is given in 
+[notebooks/positional_accuracy.ipynb](notebooks/positional_accuracy.ipynb), with the following histogram showing the results.
 
 ![histogram showing positional accuracy of pympc vs minor planet center](/notebooks/position_accuracy.png "Histogram showing positional accuracy of `pympc` vs Minor Planet Center")
 
-The `xephem` package can only provide geocentric astrometric positions. `pympc` will calculate the topocentric 
-correction as a post-processing to the initial position. The simple geometric correction applied is more than sufficient
+2. The `xephem` package can only provide geocentric astrometric positions. `pympc` will calculate the topocentric 
+correction as a post-processing to the initial position. The simple topometric correction applied is more than sufficient
 for the overwhelming majority of minor bodies, but for some near earth objects the correction can be large and the 
 relatively simple treatment by `pympc` may not be sufficient. Additionally, in order to find matches in geocentric
 positions prior to applying the topocentric correction, a buffer is added to the search radius - this should capture
 the vast majority of cases where the geocentric position is outside the seach radius but the topocentric position is 
-within it - although no guarantees. To work around this you can artifically inflate your search radius and filter
-yourself afterwards.
+within it - unless the object is within ~1/3 AU of Earth. To work around this you can artifically inflate your 
+search radius and filter yourself afterwards.
 
-The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the accuracy 
+3. The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the accuracy 
 of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff to allow 
 for this.
 
