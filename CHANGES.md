@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2024-08-25
+ - Added support for Python 3.12.
+ - Fix bug where MPCORB data where epoch data were incorrectly being calulated in UTC instead of TT.
+ - Minimum `ephem` version is now `4.1.0` to ensure correct computation of major body positions, to appear
+   in a future release.
+ - [TESTS] Added tests for topocentric corrections.
+ - [DOCS] Updated notebooks and README to reflect improved matching accuracy.
+
+
 ## [1.1.1] - 2022-07-26
  - Patch fix to correct a mix-up in tags and local version numbers.
 
@@ -12,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    is to prevent missing positional matches that are initially outside the search radius, but for which the topocentric
    correction brings them within it.
  - Add `pyerfa` to requirements to catch dubious year warnings
- - [DOCS] Added notebook quantify the degradation of matching with reference epoch separation 
+ - [DOCS] Added notebook to quantify the degradation of matching with reference epoch separation 
 
 ## [1.0.0] - 2022-03-04
 
