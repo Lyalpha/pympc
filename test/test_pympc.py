@@ -6,6 +6,7 @@ import numpy as np
 from astropy.table import Table
 
 import pympc
+from pympc.utils import get_observatory_data
 
 TEST_MPCORB_XEPHEM = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "mpcorb_xephem_head.csv"
@@ -54,11 +55,16 @@ class TestPyMPC(unittest.TestCase):
             ]
         )
 
-    # def test_update_catalogue(self):
-    #     catalogue = pympc.update_catalogue(cat_dir=".")
-    #     with open(catalogue, "r") as f:
-    #         csv.Sniffer().sniff(f.read(), delimiters=",")
-    #     os.remove(catalogue)
+    def test_observatory_data_retrieval(self):
+        # Check the observatory data is as expected
+        obs_data = get_observatory_data("500")
+        self.assertEqual(obs_data, (0.0, 0.0, 0.0))
+        obs_data = get_observatory_data("950")
+        self.assertEqual(obs_data, (342.1176, 0.87764, 0.47847))
+
+        # Check a non-existent observatory returns ValueError
+        with self.assertRaises(ValueError):
+            get_observatory_data("NONEXISTENT")
 
     def test_minor_planet_check(self):
         # Check the result is as expected
