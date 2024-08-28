@@ -19,7 +19,7 @@ import pandas as pd
 from astropy.table import Table
 from astropy.time import Time
 
-from pympc.utils import get_observatory_data
+from .utils import get_observatory_data
 
 logger = logging.getLogger(__name__)
 
