@@ -3,12 +3,12 @@ import importlib.resources
 import numpy as np
 
 try:
-    # Python 3.9+
+    # Python 3.12
     __ref = importlib.resources.files(__name__) / "data/obs_codes.npy"
     with importlib.resources.as_file(__ref) as f:
         OBS_CODES_ARRAY = np.load(str(f))
-except AttributeError:
-    # Python 3.6-3.8
+except (AttributeError, TypeError):
+    # Python 3.6-3.11
     import pkg_resources
 
     OBS_CODES_ARRAY_PATH = pkg_resources.resource_filename(
@@ -24,3 +24,8 @@ def get_observatory_data(obs_code):
         raise ValueError(f"Observatory code {obs_code} not uniquely found")
     obs_data = obs_data[0]
     return obs_data[1], obs_data[2], obs_data[3]
+
+
+# def convert_rho_to_latitude(rho_sin_phi, rho_cos_phi):
+#     """Converts rho geometry to latitude in degrees"""
+#     return np.arctan2(rho_sin_phi, rho_cos_phi) * 180 / np.pi
