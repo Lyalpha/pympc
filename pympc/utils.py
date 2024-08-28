@@ -10,6 +10,7 @@ try:
 except AttributeError:
     # Python 3.6-3.8
     import pkg_resources
+
     OBS_CODES_ARRAY_PATH = pkg_resources.resource_filename(
         __name__, "data/obs_codes.npy"
     )

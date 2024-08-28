@@ -40,10 +40,21 @@ be changed by setting the `cat_dir` argument.
 Having downloaded the catalogue (see [Setup](#Setup)), we can now search for minor bodies at a given location.
 
 ### Interactive searching
+
+> **Note:** All information is output in logging. If you do not have a lgger set up in a session, running:
+> ```python
+> import logging
+> logging.getLogger().setLevel(logging.INFO)
+> ```
+> prior to the examples will show this information.
+
 Within an interpretor session, define a search location, epoch and radius and run the search.
+
 ```python
 import astropy.units as u
+import pympc
 from astropy.time import Time
+
 ra = 230.028 * u.deg
 dec = -11.774 * u.deg
 epoch = Time("2019-01-01T00:00")
@@ -57,6 +68,7 @@ Results are returned as an astropy table.
 The above example uses explicit quantities, but if passed simple float arguments, and the program will assume the 
 units (see comments below and `pympc.minor_planet_check()` docstring for unit assumptions).
 ```python
+import pympc
 ra = 230.028  # assumed degrees
 dec = -11.774  # assumed degrees
 epoch = 58484.  # assumed MJD
@@ -69,7 +81,8 @@ By default, the search will use a default filepath for the catalogue. if the fil
 custom `cat_dir` was passed to `pympc.update_catalogue()` - then the filepath can be specified.
 
 ```python
-pympc.minor_planet_check(ra, dec, epoch, search_radius, xephem_filepath='/path/to/mpcorb_xphem.csv', observatory=observatory)
+import pympc
+pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30, xephem_filepath='/path/to/mpcorb_xphem.csv')
 ```
 
 ### Defining an observer
@@ -92,7 +105,8 @@ By default the program will calculate positions of bodies in the catalogue multi
 `chunk_size = 0`, i.e.:
 
 ```python
-pympc.minor_planet_check(ra, dec, epoch, search_radius, chunk_size=0)
+import pympc
+pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30, chunk_size=0)
 ```
 
 ### Console script searching
