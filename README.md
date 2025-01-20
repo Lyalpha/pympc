@@ -1,7 +1,7 @@
 pympc
 =====
 
-Perform checks for the presence of minor bodies at astronomical locations for a given epoch.
+Perform checks for the presence of moving Solar-system bodies at astronomical locations for a given epoch.
 
 ## Installation
 
@@ -13,9 +13,9 @@ or download/clone source and:
 
 ## Setup
 
-First we need to import the package and grab the orbit element catalogue. This must be done at least 
-once prior to any searches and can be run to overwrite the catalogues with the latest versions. 
-The default call signature is shown.
+First, if we want to search for minor bodies, we need to grab the orbital elements catalogue from the Minor
+Planet Center. This must be done at least once prior to any searches and can be run to overwrite the catalogues 
+with the latest versions. The default call signature is shown.
 ```python
 import pympc
 xephem_cat =pympc.update_catalogue()
@@ -23,28 +23,31 @@ print(xephem_cat)
 # e.g. /tmp/mpcorb_xephem.csv
 ```
 
-The catalogue downloaded will be the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue 
-from the Minor Planet Center.
+The catalogue downloaded will be the [`mpcorb`](https://www.minorplanetcenter.net/data) catalogue.
 
 The Near Earth Asteroid and Comets catalogues will be downloaded and used to update the `mpcorb` entries based on 
 the values of the `include_nea` and `include_comets` arguments (both default to `True`).
  
 It will create a csv file for each catalogue downloaded in the 
 [xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501) and return
-the filepath to this file. By default the file will be saved in the user's temporary directory - this can
+the filepath to this file. By default, the file will be saved in the user's temporary directory - this can
 be changed by setting the `cat_dir` argument.
+
+Downloading this catalogue isn't necessary fi you just want to do major body checks (i.e. planets, moons.
 
 
 ## Usage 
 
-Having downloaded the catalogue (see [Setup](#Setup)), we can now search for minor bodies at a given location.
+Having downloaded the catalogue (see [Setup](#Setup)), we can now search for both major and minor bodies 
+at a given location.
 
 ### Interactive searching
 
 > **Note:** All information is output in logging. If you do not have a lgger set up in a session, running:
 > ```python
 > import logging
-> logging.getLogger().setLevel(logging.INFO)
+> fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+> logging.basicConfig(format=fmt, level=logging.INFO)
 > ```
 > prior to the examples will show this information.
 
@@ -85,6 +88,9 @@ import pympc
 pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30, xephem_filepath='/path/to/mpcorb_xphem.csv')
 ```
 
+The search will by default search both major and minor bodies. These can be toggled via the boolean arguments
+`include_minor_bodies` and `include_major_bodies` arguments.
+
 ### Defining an observer
 
 By default, if the `observatory` argument is not passed, the program will return geocentric coordinates. However, for
@@ -94,14 +100,15 @@ on the Earth's surface. For this reason it is crucial to pass either an
 information. See the documentation for `pympc.minor_planet_check()` for more details.
 
 ## Speed and multiprocessing
-The check should take of order a second or two, depending on multiprocessing capabilities.
+The major body check takes much less than one second. The minor body check should take of order a few seconds, 
+depending on multiprocessing capabilities.
 
 The private function which actually performs the calculation is `_minor_planet_check()` (note leading underscore).
 This can be called directly, to avoid the overhead associated with converting input arguments in `minor_planet_check()`,
 if you provide them directly as required (see `_minor_planet_check()` docstring). Note that in this case a list of 
 tuples is returned, rather than an astropy table.
 
-By default the program will calculate positions of bodies in the catalogue multiprocessed. To switch this off set
+By default, the program does calculate positions of bodies in the catalogue multiprocessed. To switch this off set
 `chunk_size = 0`, i.e.:
 
 ```python
@@ -118,7 +125,7 @@ are displayed as a table. For help on the command line use:
 minor_planet_check --help
 ```
 
-> It is not currently possible to pass a custom set of observatory coordinates to the script - 
+> **Note:** It is not currently possible to pass a custom set of observatory coordinates to the script - 
 > an existing observatory code must be passed.
 
 ## Limitations
@@ -128,24 +135,27 @@ minor_planet_check --help
 the accuracy of the position is dependent on the time difference between the epoch of the orbit elements and the epoch 
 at which the search is being performed. Epoch differences between orbital elements calculation and observation of 
 a few months or less will provide typical positional accuracies of less than a few arcsecond for the vast
-majority of minor bodies. Note, however, that a small number of bodies (those undergoing strong perturbations and
-close to Earth) may be quite inaccurate (arcminutes). A fuller analysis is given in 
+majority of minor bodies. If the Minor Planet Center orbit epoch becomes many months out of date, then large separations
+are to be expected. Note, additinoally, that a small number of bodies (those undergoing strong perturbations and
+close to Earth) may be quite inaccurate (arcminutes) even at modest time differences between the search and orbit 
+elements epochs. A fuller analysis is given in 
 [notebooks/positional_accuracy.ipynb](notebooks/positional_accuracy.ipynb), with the following histogram showing the results.
-
 ![histogram showing positional accuracy of pympc vs minor planet center](/notebooks/position_accuracy.png "Histogram showing positional accuracy of `pympc` vs Minor Planet Center")
+> **Note:** For this reason, `pympc` is not suitable to historical searches of positions since the Minor Planet Center 
+> do not make available historical orbit elements catalgoues. It is intended for near real-time searches.
 
-2. The `xephem` package can only provide geocentric astrometric positions. `pympc` will calculate the topocentric 
-correction as a post-processing to the initial position. The simple topometric correction applied is more than sufficient
-for the overwhelming majority of minor bodies, but for some near earth objects the correction can be large and the 
-relatively simple treatment by `pympc` may not be sufficient. Additionally, in order to find matches in geocentric
-positions prior to applying the topocentric correction, a buffer is added to the search radius - this should capture
-the vast majority of cases where the geocentric position is outside the seach radius but the topocentric position is 
-within it - unless the object is within ~1/3 AU of Earth. To work around this you can artifically inflate your 
-search radius and filter yourself afterwards.
+2. The `xephem` package, used to calculate positions, can only provide geocentric astrometric positions. `pympc` will 
+calculate the topocentric correction as a post-processing to the initial position. The simple topometric correction 
+applied is more than sufficient for the overwhelming majority of minor bodies, but for some near earth objects the 
+correction can be large and the relatively simple treatment by `pympc` may not be sufficient. Additionally, in order 
+to find matches in geocentric positions prior to applying the topocentric correction, a buffer is added to the search 
+radius - this should capture the vast majority of cases where the geocentric position is outside the seach radius but 
+the topocentric position is within it - unless the object is within ~1/3 AU of Earth. To work around this you can 
+artifically inflate your search radius and filter yourself afterwards.
 
-3. The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the accuracy 
-of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff to allow 
-for this.
+3. The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the 
+accuracy of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff 
+to allow for this.
 
 ### Acknowledgements
 This package makes use of data and/or services provided by the International Astronomical Union's 

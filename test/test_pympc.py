@@ -6,10 +6,11 @@ import numpy as np
 from astropy.table import Table
 
 import pympc
+from pympc.pympc import generate_mpcorb_xephem
 from pympc.utils import get_observatory_data
 
 TEST_MPCORB_XEPHEM = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "mpcorb_xephem_head.csv"
+    os.path.dirname(os.path.realpath(__file__)), "resources", "mpcorb_xephem_head.csv"
 )
 
 
@@ -55,6 +56,23 @@ class TestPyMPC(unittest.TestCase):
             ]
         )
 
+        self.moon_ra = 350.725037
+        self.moon_dec = -6.13578
+        self.moon_mjd = 60481.147089
+        self.moon_search_radius = 5
+        self.moon_result_topo = pympc.pympc._to_astropy_table(
+            [
+                [
+                    "Hyperion",
+                    350.7246696793632,
+                    -6.135791897494748,
+                    1.315472890149291,
+                    14.1,
+                    "Hyperion,P",
+                ],
+            ]
+        )
+
     def test_observatory_data_retrieval(self):
         # Check the observatory data is as expected
         obs_data = get_observatory_data("500")
@@ -86,7 +104,7 @@ class TestPyMPC(unittest.TestCase):
             self.ceres_mjd,
             self.ceres_search_radius,
             TEST_MPCORB_XEPHEM,
-            chunk_size=2e4,
+            chunk_size=20000,
         )
         self._roundedAssertEqual(ceres_result, self.ceres_result_geo)
 
@@ -98,15 +116,33 @@ class TestPyMPC(unittest.TestCase):
             self.ceres_mjd,
             self.ceres_search_radius * 0,
             TEST_MPCORB_XEPHEM,
-            chunk_size=2e4,
+            chunk_size=20000,
         )
-        self.assertEqual(ceres_result, None)
+        self.assertEqual(ceres_result, [])
 
-        # Check a 100% sky coverage search radius returns all objects
+        # Check a 100% sky coverage search radius returns all minor objects
         all_results = pympc.minor_planet_check(
-            0, 0, self.ceres_mjd, 3600 * 180, TEST_MPCORB_XEPHEM, chunk_size=0
+            0,
+            0,
+            self.ceres_mjd,
+            3600 * 180,
+            TEST_MPCORB_XEPHEM,
+            include_major_bodies=False,
+            chunk_size=0,
         )
         self.assertEqual(len(all_results), 10)
+
+        # Check a 100% sky coverage search radius returns all major objects
+        all_results = pympc.minor_planet_check(
+            0,
+            0,
+            self.ceres_mjd,
+            3600 * 180,
+            TEST_MPCORB_XEPHEM,
+            include_minor_bodies=False,
+            chunk_size=0,
+        )
+        self.assertEqual(len(all_results), 27)
 
     def test_minor_planet_check_maxmag(self):
         # No results should be returned for a maxmag of 0
@@ -117,9 +153,9 @@ class TestPyMPC(unittest.TestCase):
             self.ceres_search_radius,
             TEST_MPCORB_XEPHEM,
             max_mag=0,
-            chunk_size=2e4,
+            chunk_size=20000,
         )
-        self.assertEqual(ceres_result, None)
+        self.assertEqual(ceres_result, [])
 
     def test_minor_planet_check_observatory(self):
         # Passing an observatory should return the correct results, regardless of
@@ -238,3 +274,43 @@ class TestPyMPC(unittest.TestCase):
                 rho_sin_phi=0.5,
             )
             self._roundedAssertEqual(_topo_coo_ret, _coo_topo)
+
+    def test_major_moon_check(self):
+        moon_result = pympc.minor_planet_check(
+            self.moon_ra,
+            self.moon_dec,
+            self.moon_mjd,
+            self.moon_search_radius,
+            include_minor_bodies=False,
+            observatory=950,
+            chunk_size=0,
+        )
+        self.assertEqual(moon_result, self.moon_result_topo)
+
+
+class TestGenerateMPCORB(unittest.TestCase):
+    def setUp(self):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        self.csv_file = None
+        self.json_file = os.path.join(
+            script_dir, "resources", "mpcorb_xephem_test.json"
+        )
+        self.expected_csv_file = os.path.join(
+            script_dir, "resources", "mpcorb_xephem_expected.csv"
+        )
+
+    def test_generate_mpcorb_xephem(self):
+        self.csv_file = generate_mpcorb_xephem(self.json_file)
+
+        self.assertTrue(os.path.exists(self.csv_file))
+
+        with open(self.csv_file, "r") as f:
+            generated_csv = f.read()
+        with open(self.expected_csv_file, "r") as f:
+            expected_csv = f.read()
+        self.assertEqual(generated_csv, expected_csv)
+
+    def tearDown(self):
+        if self.csv_file is not None and os.path.exists(self.csv_file):
+            os.remove(self.csv_file)
