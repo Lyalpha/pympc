@@ -99,6 +99,47 @@ on the Earth's surface. For this reason it is crucial to pass either an
 [observatory code](https://www.minorplanetcenter.net/iau/lists/ObsCodes.html) or a tuple containing the observatory
 information. See the documentation for `pympc.minor_planet_check()` for more details.
 
+### Console script searching
+
+Installation of the package will create a `minor_planet_check` script, which can be accessed
+from the command line. The options follow the same as the interactive searching, and results
+are displayed as a table. For help on the command line use:
+```bash
+minor_planet_check --help
+```
+
+> **Note:** It is not currently possible to pass a custom set of observatory coordinates to the script - 
+> an existing observatory code must be passed.
+
+
+
+### Major bodies (planets, moons)
+
+Major bodies (those with a `ephem.[body]` object in the `pyephem` package) can be included in the search by adding 
+the `include_major_bodies` argument to `minor_planet_check()` when doing interactive searches, or 
+`--match-to-major-bodies` when using the console script.
+
+Additionally, `pympc` can perform a Hill sphere check for a position, to ensure it is not within the gravitational
+sphere of influence of a planet. This is done by calling `planet_hill_sphere_check()` interactively, or adding
+`--hill_sphere_check` to the console script.
+
+#### Example of a minor Jovian moon
+
+```bash
+minor_planet_check 69.122371 21.11505 60695.428680 --match-to-major-bodies -r 5 --hill-sphere-check
+```
+
+This object is not in the major body catalogue of `pyephem`, but does provide a match to Jupiter's Hill sphere. Output:
+
+```
+Major and Minor Planet Check:
+No major or minor bodies found.
+Planet Hill Sphere Check:
+  name          ra               dec             separation      mag 
+------- ----------------- ------------------ ------------------ -----
+Jupiter 69.83640596092219 21.603370530186574 2970.0900089441457 -2.46
+```
+
 ## Speed and multiprocessing
 The major body check takes much less than one second. The minor body check should take of order a few seconds, 
 depending on multiprocessing capabilities.
@@ -115,18 +156,6 @@ By default, the program does calculate positions of bodies in the catalogue mult
 import pympc
 pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30, chunk_size=0)
 ```
-
-### Console script searching
-
-Installation of the package will create a `minor_planet_check` script, which can be accessed
-from the command line. The options follow the same as the interactive searching, and results
-are displayed as a table. For help on the command line use:
-```bash
-minor_planet_check --help
-```
-
-> **Note:** It is not currently possible to pass a custom set of observatory coordinates to the script - 
-> an existing observatory code must be passed.
 
 ## Limitations
 
