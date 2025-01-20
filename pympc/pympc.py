@@ -82,7 +82,7 @@ DEGTORAD = 1 / RADTODEG
 SOLAR_PARALLAX_ARCSEC = 8.794143
 SOLAR_PARALLAX_RAD = (SOLAR_PARALLAX_ARCSEC / 3600.0) * DEGTORAD
 
-__ref = importlib.resources.files(__name__) / "data/obs_codes.npy"
+__ref = importlib.resources.files(__package__) / "data/obs_codes.npy"
 with importlib.resources.as_file(__ref) as __ref_file:
     OBS_CODE_ARRAY = np.load(__ref_file)
 
@@ -790,11 +790,69 @@ def planet_hill_sphere_check(
 
 
 def _planet_hill_sphere_check(
-    # TODO
+    ra,
+    dec,
+    epoch,
+    longitude=0.0,
+    rho_cos_phi=0.0,
+    rho_sin_phi=0.0,
 ):
+    """
+    performs a planet hill sphere check around a position `coo` at epoch `date` to locate any major bodies
+
+    Parameters
+    ----------
+    ra : float
+        RA of search position in radians
+    dec : float
+        Declination of search position in radians
+    epoch : float
+        epoch at which to search in decimal years (e.g. 2019.12345)
+    longitude : float
+        Longitude of observer in degrees.
+    rho_cos_phi : float
+        Parallax constant for cosine of the latitude of the observer.
+    rho_sin_phi : float
+        Parallax constant for sine of the latitude of the observer.
+
+    Returns
+    -------
+
+    """
+    date = ephem.date(str(epoch))
+
+    if any([longitude, rho_cos_phi, rho_sin_phi]):
+        # Buffer against missing matches due to topocentric corrections
+        search_radius_buffer = SOLAR_PARALLAX_ARCSEC * 3
+    else:
+        search_radius_buffer = 0
+
+    results = []
     for planet, properties in MAJOR_BODIES.items():
         planet = getattr(ephem, planet)()
         planet.compute(date)
+        # Calculate hill sphere radius in arcseconds based on value in AU in MAJOR_BODIES dict, and using
+        # planet.earth_distance as the distance to the planet in AU
+        hill_sphere_radius = np.arctan(
+                properties["hill_radius"] / planet.earth_distance
+            ) * RADTODEG * 3600
+
+        res = _cone_search(
+            None,
+            planet,
+            (ra, dec),
+            date,
+            hill_sphere_radius,
+            np.inf,
+            longitude,
+            rho_cos_phi,
+            rho_sin_phi,
+            search_radius_buffer,
+        )
+        if res is not None:
+            results.append(res)
+    logger.info("found {} matches".format(len(results)))
+    return results
 
 
 def _cone_search(
@@ -956,6 +1014,16 @@ def _console_script(args=None):
         "--update-mpcorb is used).",
     )
     parser.add_argument(
+        "--match-to-major-bodies",
+        action="store_true",
+        help="Whether to include major bodies (planets and their major moons) in the search.",
+    )
+    parser.add_argument(
+        "--hill-sphere-check",
+        action="store_true",
+        help="Whether to perform a hill sphere check for major bodies around the search position."
+    )
+    parser.add_argument(
         "-m",
         "--max-mag",
         type=float,
@@ -1014,18 +1082,40 @@ def _console_script(args=None):
         xephem_dir = args_dict["cat_dir"] or tempfile.gettempdir()
         xephem_filepath = os.path.join(xephem_dir, MPCORB_XEPHEM)
 
+    if args_dict["match_to_major_bodies"]:
+        print("Major and Minor Planet Check:")
+    else:
+        print("Minor Planet Check:")
     results = minor_planet_check(
-        args_dict["ra"],
-        args_dict["dec"],
-        epoch,
-        args_dict["radius"],
-        xephem_filepath,
-        args_dict["max_mag"],
-        args_dict["observatory"],
+        ra=args_dict["ra"],
+        dec=args_dict["dec"],
+        epoch=epoch,
+        search_radius=args_dict["radius"],
+        xephem_filepath=xephem_filepath,
+        max_mag=args_dict["max_mag"],
+        include_minor_bodies=True,
+        include_major_bodies=args_dict["match_to_major_bodies"],
+        observatory=args_dict["observatory"],
         chunk_size=args_dict["chunk_size"],
     )
     if len(results):
         del results["xephem_str"]
-        return results.pprint_all()
+        print(results.pprint_all())
     else:
-        logging.info("No minor planets found.")
+        if args_dict["match_to_major_bodies"]:
+            print("No major or minor bodies found.")
+        else:
+            print("No minor planets found.")
+    if args_dict["hill_sphere_check"]:
+        print("Planet Hill Sphere Check:")
+        results_hill = planet_hill_sphere_check(
+            ra=args_dict["ra"],
+            dec=args_dict["dec"],
+            epoch=epoch,
+            observatory=args_dict["observatory"],
+        )
+        if len(results_hill):
+            del results_hill["xephem_str"]
+            print(results_hill.pprint_all())
+        else:
+            print("Not found to be inside any planet's hill sphere.")
