@@ -1,3 +1,5 @@
+<a href="https://ascl.net/2501.002"><img src="https://img.shields.io/badge/ascl-2501.002-blue.svg?colorB=262255" alt="ascl:2501.002" /></a>
+
 pympc
 =====
 
