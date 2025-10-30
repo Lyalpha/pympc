@@ -281,15 +281,6 @@ def generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=No
     return xephem_csv_path
 
 
-def _get_observatory_data(obs_code):
-    """Return the longitude, rho_sin_phi, rho_cos_phi of an observatory"""
-    obs_data = OBS_CODE_ARRAY[OBS_CODE_ARRAY["Code"] == obs_code]
-    if len(obs_data) != 1:
-        raise ValueError(f"Observatory code {obs_code} not uniquely found")
-    obs_data = obs_data[0]
-    return obs_data[1], obs_data[2], obs_data[3]
-
-
 def minor_planet_check(
     ra,
     dec,
@@ -333,7 +324,7 @@ def minor_planet_check(
     observatory : str or int or tuple, optional
         the observatory to use for calculating topocentric corrections to
         the minor body positions. This can be given as the observatory code
-        (see notes) or a tuple of (longitude [degrees], rho_cos_phi, rho_sin_phi). The
+        (see notes) or a tuple of (longitude [degrees], rhocosphi, rhosinphi). The
         default returns geometric positions.
     chunk_size : int, optional
         the chunk size for multiprocessing of the search. avoid setting too low
@@ -386,15 +377,7 @@ def minor_planet_check(
             )
             raise
 
-    if isinstance(observatory, int):
-        observatory = str(observatory)
-    if isinstance(observatory, str):
-        longitude, rho_cos_phi, rho_sin_phi = get_observatory_data(observatory)
-    elif isinstance(observatory, tuple):
-        longitude, rho_cos_phi, rho_sin_phi = observatory
-    else:
-        logger.error(f"unrecognised format for observatory {observatory}")
-        raise ValueError
+    longitude, rhocosphi, rhosinphi = get_observatory_data(observatory)
 
     results = _minor_planet_check(
         coo[0],
@@ -404,8 +387,8 @@ def minor_planet_check(
         xephem_filepath,
         max_mag,
         longitude,
-        rho_cos_phi,
-        rho_sin_phi,
+        rhocosphi,
+        rhosinphi,
         include_minor_bodies,
         include_major_bodies,
         chunk_size,
@@ -423,8 +406,8 @@ def _minor_planet_check(
     xephem_filepath=None,
     max_mag=None,
     longitude=0.0,
-    rho_cos_phi=0.0,
-    rho_sin_phi=0.0,
+    rhocosphi=0.0,
+    rhosinphi=0.0,
     include_minor_bodies=True,
     include_major_bodies=False,
     c=2e4,
@@ -449,9 +432,9 @@ def _minor_planet_check(
         maximum magnitude of minor planet matches to return.
     longitude: float
         Longitude of observer in degrees.
-    rho_cos_phi: float
+    rhocosphi: float
         Parallax constant for cosine of the latitude of the observer.
-    rho_sin_phi: float
+    rhosinphi: float
         Parallax constant for sine of the latitude of the observer.
     include_minor_bodies : boolean, optional
         whether to include minor bodies in the search. (i.e. asteroids and comets
@@ -471,7 +454,7 @@ def _minor_planet_check(
     """
     if max_mag is None:
         max_mag = np.inf
-    if any([longitude, rho_cos_phi, rho_sin_phi]):
+    if any([longitude, rhocosphi, rhosinphi]):
         # If we are using topocentric coordinates, there needs to be a small buffer
         # on searching to ensure the geocentric coordinates returned by xephem contain
         # all matches within the search radius, once topocentric corrections are applied.
@@ -509,8 +492,8 @@ def _minor_planet_check(
                 search_radius,
                 max_mag,
                 longitude,
-                rho_cos_phi,
-                rho_sin_phi,
+                rhocosphi,
+                rhosinphi,
                 search_radius_buffer,
             )
         else:
@@ -525,8 +508,8 @@ def _minor_planet_check(
                         repeat(search_radius),
                         repeat(max_mag),
                         repeat(longitude),
-                        repeat(rho_cos_phi),
-                        repeat(rho_sin_phi),
+                        repeat(rhocosphi),
+                        repeat(rhosinphi),
                         repeat(search_radius_buffer),
                     ),
                 )
@@ -543,8 +526,8 @@ def _minor_planet_check(
             search_radius,
             max_mag,
             longitude,
-            rho_cos_phi,
-            rho_sin_phi,
+            rhocosphi,
+            rhosinphi,
             search_radius_buffer,
         )
 
@@ -563,8 +546,8 @@ def _cone_search_xephem_entries(
     search_radius,
     max_mag,
     longitude,
-    rho_cos_phi,
-    rho_sin_phi,
+    rhocosphi,
+    rhosinphi,
     buffer,
 ):
     """
@@ -585,9 +568,9 @@ def _cone_search_xephem_entries(
         maximum magnitude of minor planet matches to return.
     longitude: float
         Longitude of observer in degrees.
-    rho_cos_phi: float
+    rhocosphi: float
         Parallax constant for cosine of the latitude of the observer.
-    rho_sin_phi: float
+    rhosinphi: float
         Parallax constant for sine of the latitude of the observer.
     buffer: float
         Buffer to add to search radius to ensure all matches are found even after
@@ -612,8 +595,8 @@ def _cone_search_xephem_entries(
             search_radius,
             max_mag,
             longitude,
-            rho_cos_phi,
-            rho_sin_phi,
+            rhocosphi,
+            rhosinphi,
             buffer,
         )
         if res is not None:
@@ -628,8 +611,8 @@ def _cone_search_major_bodies(
     search_radius,
     max_mag,
     longitude,
-    rho_cos_phi,
-    rho_sin_phi,
+    rhocosphi,
+    rhosinphi,
     buffer,
 ):
     """
@@ -648,9 +631,9 @@ def _cone_search_major_bodies(
         maximum magnitude of matches to return.
     longitude: float
         Longitude of observer in degrees.
-    rho_cos_phi: float
+    rhocosphi: float
         Parallax constant for cosine of the latitude of the observer.
-    rho_sin_phi: float
+    rhosinphi: float
         Parallax constant for sine of the latitude of the observer.
     buffer: float
         Buffer to add to search radius to ensure all matches are found even after
@@ -680,8 +663,8 @@ def _cone_search_major_bodies(
                 search_radius,
                 max_mag,
                 longitude,
-                rho_cos_phi,
-                rho_sin_phi,
+                rhocosphi,
+                rhosinphi,
                 buffer,
             )
             if res is not None:
@@ -694,8 +677,8 @@ def _cone_search_major_bodies(
             search_radius,
             max_mag,
             longitude,
-            rho_cos_phi,
-            rho_sin_phi,
+            rhocosphi,
+            rhosinphi,
             buffer,
         )
         if res is not None:
@@ -727,7 +710,7 @@ def planet_hill_sphere_check(
     observatory : str or int or tuple, optional
         the observatory to use for calculating topocentric corrections to
         the minor body positions. This can be given as the observatory code
-        (see notes) or a tuple of (longitude [degrees], rho_cos_phi, rho_sin_phi). The
+        (see notes) or a tuple of (longitude [degrees], rhocosphi, rhosinphi). The
         default returns geometric positions.
 
     Returns
@@ -766,23 +749,15 @@ def planet_hill_sphere_check(
         logger.error("unrecognised format for date {}".format(epoch))
         raise ValueError
 
-    if isinstance(observatory, int):
-        observatory = str(observatory)
-    if isinstance(observatory, str):
-        longitude, rho_cos_phi, rho_sin_phi = get_observatory_data(observatory)
-    elif isinstance(observatory, tuple):
-        longitude, rho_cos_phi, rho_sin_phi = observatory
-    else:
-        logger.error(f"unrecognised format for observatory {observatory}")
-        raise ValueError
+    longitude, rhocosphi, rhosinphi = get_observatory_data(observatory)
 
     results = _planet_hill_sphere_check(
         coo[0],
         coo[1],
         decimalyear,
         longitude,
-        rho_cos_phi,
-        rho_sin_phi,
+        rhocosphi,
+        rhosinphi,
     )
     if len(results):
         results = _to_astropy_table(results)
@@ -794,8 +769,8 @@ def _planet_hill_sphere_check(
     dec,
     epoch,
     longitude=0.0,
-    rho_cos_phi=0.0,
-    rho_sin_phi=0.0,
+    rhocosphi=0.0,
+    rhosinphi=0.0,
 ):
     """
     performs a planet hill sphere check around a position `coo` at epoch `date` to locate any major bodies
@@ -810,9 +785,9 @@ def _planet_hill_sphere_check(
         epoch at which to search in decimal years (e.g. 2019.12345)
     longitude : float
         Longitude of observer in degrees.
-    rho_cos_phi : float
+    rhocosphi : float
         Parallax constant for cosine of the latitude of the observer.
-    rho_sin_phi : float
+    rhosinphi : float
         Parallax constant for sine of the latitude of the observer.
 
     Returns
@@ -821,7 +796,7 @@ def _planet_hill_sphere_check(
     """
     date = ephem.date(str(epoch))
 
-    if any([longitude, rho_cos_phi, rho_sin_phi]):
+    if any([longitude, rhocosphi, rhosinphi]):
         # Buffer against missing matches due to topocentric corrections
         search_radius_buffer = SOLAR_PARALLAX_ARCSEC * 3
     else:
@@ -845,8 +820,8 @@ def _planet_hill_sphere_check(
             hill_sphere_radius,
             np.inf,
             longitude,
-            rho_cos_phi,
-            rho_sin_phi,
+            rhocosphi,
+            rhosinphi,
             search_radius_buffer,
         )
         if res is not None:
@@ -863,8 +838,8 @@ def _cone_search(
     search_radius,
     max_mag,
     longitude,
-    rho_cos_phi,
-    rho_sin_phi,
+    rhocosphi,
+    rhosinphi,
     buffer,
 ):
     separation = (
@@ -873,7 +848,7 @@ def _cone_search(
     # First match geocentric positions against the buffered search radius
     if separation <= search_radius + buffer and body.mag <= max_mag:
         ra, dec = float(body.a_ra), float(body.a_dec)
-        if any([longitude, rho_cos_phi, rho_sin_phi]):
+        if any([longitude, rhocosphi, rhosinphi]):
             # Perform a topocentric correction
             ra, dec = equitorial_geocentric_to_topocentric(
                 body.a_ra,
@@ -881,8 +856,8 @@ def _cone_search(
                 body.earth_distance,
                 date.datetime(),
                 longitude,
-                rho_cos_phi,
-                rho_sin_phi,
+                rhocosphi,
+                rhosinphi,
             )
             separation = 3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
             # Apply the search radius check again, here without the buffer since we now have
@@ -905,8 +880,8 @@ def equitorial_geocentric_to_topocentric(
     dist_au,
     epoch,
     longitude,
-    rho_cos_phi,
-    rho_sin_phi,
+    rhocosphi,
+    rhosinphi,
 ):
     """
     Convert equitorial geocentric coordinates to topocentric coordinates.
@@ -921,9 +896,9 @@ def equitorial_geocentric_to_topocentric(
         Date and time of observation.
     longitude: float
         Longitude of observer in degrees.
-    rho_cos_phi:
+    rhocosphi:
         Parallax constant for cosine of the latitude of the observer.
-    rho_sin_phi:
+    rhosinphi:
         Parallax constant for sine of the latitude of the observer.
 
     Returns
@@ -943,13 +918,13 @@ def equitorial_geocentric_to_topocentric(
 
     parallax = SOLAR_PARALLAX_RAD / dist_au
     incrra = np.arctan2(
-        -(rho_cos_phi * np.sin(parallax) * np.sin(local_hour_angle)),
-        np.cos(dec_geo) - rho_cos_phi * np.sin(parallax) * np.cos(local_hour_angle),
+        -(rhocosphi * np.sin(parallax) * np.sin(local_hour_angle)),
+        np.cos(dec_geo) - rhocosphi * np.sin(parallax) * np.cos(local_hour_angle),
     )
     ra_topo = ra_geo + incrra
     dec_topo = np.arctan2(
-        np.cos(incrra) * (np.sin(dec_geo) - rho_sin_phi * np.sin(parallax)),
-        np.cos(dec_geo) - rho_cos_phi * np.sin(parallax) * np.cos(local_hour_angle),
+        np.cos(incrra) * (np.sin(dec_geo) - rhosinphi * np.sin(parallax)),
+        np.cos(dec_geo) - rhocosphi * np.sin(parallax) * np.cos(local_hour_angle),
     )
 
     return ra_topo, dec_topo
