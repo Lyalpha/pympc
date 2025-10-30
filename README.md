@@ -9,11 +9,13 @@ Perform checks for the presence of moving Solar-system bodies at astronomical lo
 
 `pip install pympc`
 
-or download/clone source and:
+or download/clone the source files and:
 
 `python setup.py install`
 
 ## Setup
+
+### Fetching the orbital elements catalogue
 
 First, if we want to search for minor bodies, we need to grab the orbital elements catalogue from the Minor
 Planet Center. This must be done at least once prior to any searches and can be run to overwrite the catalogues 
@@ -35,13 +37,24 @@ It will create a csv file for each catalogue downloaded in the
 the filepath to this file. By default, the file will be saved in the user's temporary directory - this can
 be changed by setting the `cat_dir` argument.
 
-Downloading this catalogue isn't necessary fi you just want to do major body checks (i.e. planets, moons.
+The catalogue should be updated periodically to ensure the most accurate positions are calculated, see
+[Limitations](#Limitations) for more details.
 
+Downloading this catalogue isn't necessary if you just want to do major body checks (i.e. planets, moons.
+
+### Fetching observatory information
+
+The Minor Planet Center provides a list of observatory codes and their coordinates via their [Observatory
+Codes API](https://www.minorplanetcenter.net/mpcops/documentation/obscodes-api/). The first time a minor body
+search is performed, this list will be downloaded and cached locally for all future use. If you wish to update 
+this cache, you can call `pympc.update_obscode_cache()` to download the latest version.
+
+> **Note**: The observatory codes cache is stored in the user's OS-specific cache directory.
 
 ## Usage 
 
-Having downloaded the catalogue (see [Setup](#Setup)), we can now search for both major and minor bodies 
-at a given location.
+Having downloaded the catalogue (see [Fetching the orbital elements catalogue](#Fetching the orbital elements catalogue)), we can now search for both 
+major and minor bodies at a given location.
 
 ### Interactive searching
 
@@ -64,7 +77,7 @@ ra = 230.028 * u.deg
 dec = -11.774 * u.deg
 epoch = Time("2019-01-01T00:00")
 search_radius = 5 * u.arcmin
-observatory = 950  # observatory code for La Palma
+observatory = 950  # equivalently pass as "950" or "La Palma" or (342.1176 0.87764 +0.47847)
 pympc.minor_planet_check(ra, dec, epoch, search_radius, observatory=observatory)
 ```
 
@@ -78,7 +91,7 @@ ra = 230.028  # assumed degrees
 dec = -11.774  # assumed degrees
 epoch = 58484.  # assumed MJD
 search_radius = 30  # assumed arcseconds
-observatory = 950  # observatory code for La Palma
+observatory = 950  # equivalently pass as "950" or "La Palma" or (342.1176 0.87764 +0.47847)
 pympc.minor_planet_check(ra, dec, epoch, search_radius, observatory=observatory)
 ```
 
@@ -87,7 +100,13 @@ custom `cat_dir` was passed to `pympc.update_catalogue()` - then the filepath ca
 
 ```python
 import pympc
-pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30, xephem_filepath='/path/to/mpcorb_xphem.csv')
+pympc.minor_planet_check(
+    ra=230.028, 
+    dec=-11.774, 
+    epoch=58484., 
+    search_radius=30, 
+    xephem_filepath='/path/to/mpcorb_xphem.csv'
+)
 ```
 
 The search will by default search both major and minor bodies. These can be toggled via the boolean arguments
@@ -98,8 +117,8 @@ The search will by default search both major and minor bodies. These can be togg
 By default, if the `observatory` argument is not passed, the program will return geocentric coordinates. However, for
 relatively nearby objects like minor bodies, there can be signicant parallax introduced by the location of an observer
 on the Earth's surface. For this reason it is crucial to pass either an 
-[observatory code](https://www.minorplanetcenter.net/iau/lists/ObsCodes.html) or a tuple containing the observatory
-information. See the documentation for `pympc.minor_planet_check()` for more details.
+[observatory code](https://www.minorplanetcenter.net/iau/lists/ObsCodes.html), an IAU-recognised name of an observatory,
+or a tuple containing the observatory information. See the documentation for `pympc.minor_planet_check()` for more details.
 
 ### Console script searching
 
@@ -111,7 +130,7 @@ minor_planet_check --help
 ```
 
 > **Note:** It is not currently possible to pass a custom set of observatory coordinates to the script - 
-> an existing observatory code must be passed.
+> an existing observatory code or name must be passed.
 
 
 
@@ -161,7 +180,7 @@ pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30
 
 ## Limitations
 
-1. The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the 
+* The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the 
 [pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. Thus, 
 the accuracy of the position is dependent on the time difference between the epoch of the orbit elements and the epoch 
 at which the search is being performed. Epoch differences between orbital elements calculation and observation of 
@@ -175,7 +194,7 @@ elements epochs. A fuller analysis is given in
 > **Note:** For this reason, `pympc` is not suitable to historical searches of positions since the Minor Planet Center 
 > do not make available historical orbit elements catalgoues. It is intended for near real-time searches.
 
-2. The `xephem` package, used to calculate positions, can only provide geocentric astrometric positions. `pympc` will 
+* The `xephem` package, used to calculate positions, can only provide geocentric astrometric positions. `pympc` will 
 calculate the topocentric correction as a post-processing to the initial position. The simple topometric correction 
 applied is more than sufficient for the overwhelming majority of minor bodies, but for some near earth objects the 
 correction can be large and the relatively simple treatment by `pympc` may not be sufficient. Additionally, in order 
@@ -184,15 +203,12 @@ radius - this should capture the vast majority of cases where the geocentric pos
 the topocentric position is within it - unless the object is within ~1/3 AU of Earth. To work around this you can 
 artifically inflate your search radius and filter yourself afterwards.
 
-3. The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the 
+* The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the 
 accuracy of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff 
 to allow for this.
 
 ### Acknowledgements
 This package makes use of data and/or services provided by the International Astronomical Union's 
 [Minor Planet Center](https://www.minorplanetcenter.net).
-
-Orbit elements are also sourced from [Lowell Observatory](https://asteroid.lowell.edu/main/), which is funded by the 
-Lowell Observatory Endowment and NASA PDART grant NNX16AG52G.
 
 Based from a package developed by Chris Klein and Duncan Galloway.
