@@ -479,9 +479,9 @@ def _minor_planet_check(
             with open(xephem_filepath, "r") as f:
                 xephem_db = [l.strip() for l in f.readlines()]
         except FileNotFoundError:
-            logger.exception(
-                "xephem db csv file not found at {}. run pympc.update_catalogue() "
-                "if necessary.".format(xephem_filepath)
+            raise FileNotFoundError(
+                f"xephem db csv file not found at {xephem_filepath}.\n"
+                "run pympc.update_catalogue() if necessary."
             )
             raise
         if c == 0:

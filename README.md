@@ -170,7 +170,7 @@ majority of minor bodies. If the Minor Planet Center orbit epoch becomes many mo
 are to be expected. Note, additinoally, that a small number of bodies (those undergoing strong perturbations and
 close to Earth) may be quite inaccurate (arcminutes) even at modest time differences between the search and orbit 
 elements epochs. A fuller analysis is given in 
-[notebooks/positional_accuracy.ipynb](notebooks/positional_accuracy.ipynb), with the following histogram showing the results.
+[notebooks/position_accuracy.ipynb](notebooks/position_accuracy.ipynb), with the following histogram showing the results.
 ![histogram showing positional accuracy of pympc vs minor planet center](/notebooks/position_accuracy.png "Histogram showing positional accuracy of `pympc` vs Minor Planet Center")
 > **Note:** For this reason, `pympc` is not suitable to historical searches of positions since the Minor Planet Center 
 > do not make available historical orbit elements catalgoues. It is intended for near real-time searches.

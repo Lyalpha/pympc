@@ -202,7 +202,7 @@ class TestPyMPC(unittest.TestCase):
                 self.ceres_mjd,
                 self.ceres_search_radius,
                 TEST_MPCORB_XEPHEM,
-                observatory="500",
+                observatory=observatory,
             )
             self._assert_tables_equal(ceres_result, self.ceres_result_geo)
         # Test topocentric La Palma results are as expected
@@ -272,7 +272,7 @@ class TestPyMPC(unittest.TestCase):
         # A distance of 0 should return a ZeroDivisionError
         dist_au = 0
         with self.assertRaises(ZeroDivisionError):
-            ra_topo, dec_topo = pympc.pympc.equitorial_geocentric_to_topocentric(
+            _ = pympc.pympc.equitorial_geocentric_to_topocentric(
                 ra_geo=0,
                 dec_geo=0,
                 dist_au=dist_au,

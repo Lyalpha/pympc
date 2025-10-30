@@ -83,7 +83,7 @@ def ensure_obs_codes_cached(update: bool = False) -> str:
     if os.path.exists(cache) and not update:
         return cache
 
-    logger.info("Fetching and caching MPC observatory codes")
+    logger.info("fetching and caching MPC observatory codes")
     obscode_arr = _fetch_obscodes()
 
     fd, tmp_path = tempfile.mkstemp(dir=_cache_dir(), suffix=".npy")
@@ -122,14 +122,14 @@ def get_observatory_data(
     # Tuple passthrough
     if isinstance(observatory, tuple):
         if len(observatory) != 3:
-            raise ValueError("Observatory tuple must be (longitude, rho_cos_phi, rho_sin_phi)")
+            raise ValueError("observatory tuple must be (longitude, rho_cos_phi, rho_sin_phi)")
         return float(observatory[0]), float(observatory[1]), float(observatory[2])
 
     if isinstance(observatory, int):
         observatory = str(observatory)
 
     if not isinstance(observatory, str):
-        raise ValueError(f"Unrecognised format for observatory: {observatory!r}")
+        raise ValueError(f"unrecognised format for observatory: {observatory!r}")
 
     obs = observatory.strip()
     obscode_arr: np.ndarray = _load_obs_codes()
@@ -150,9 +150,9 @@ def get_observatory_data(
         elif (short_sum := np.sum(short_mask)) == 1:
             row = obscode_arr[short_mask][0]
         elif (name_sum + short_sum) > 1:
-            raise ValueError(f"Ambiguous observatory name '{observatory}'. Please use the obscode.")
+            raise ValueError(f"ambiguous observatory name '{observatory}', please use the obscode.")
     if row is not None:
         return float(row["longitude"]), float(row["rhocosphi"]), float(row["rhosinphi"])
-    raise ValueError(f"Observatory '{observatory}' not found by code or name."
-                     f"Try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
+    raise ValueError(f"observatory '{observatory}' not found by code or name.\n"
+                     f"try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
                      f"cache and fetch the latest data from the MPC.")
