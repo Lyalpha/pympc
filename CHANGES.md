@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.dev0 Unreleased]
+ - Switched Observatory code fetching to use MPC's API and removed pre-bundled observatory codes file.
+   `observatory` argument can now be passed also as an IAU-recognized observatory name as well as the 3-letter code.
 ## [1.3.0] - 2025-01-20
  - Added ability to match to Major Solar System bodies and perform a Planet Hill sphere check of coordinates.
 
