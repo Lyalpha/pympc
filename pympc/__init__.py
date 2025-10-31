@@ -7,4 +7,14 @@ from .pympc import (
     _planet_hill_sphere_check,
 )
 
-__version__ = "1.3.0"
+
+def update_obscode_cache() -> None:
+    """
+    Update the obscodes cache by re-downloading from the MPC.
+    """
+    from .utils import ensure_obs_codes_cached
+
+    ensure_obs_codes_cached(update=True)
+
+
+__version__ = "2.dev0"

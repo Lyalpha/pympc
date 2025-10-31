@@ -3,6 +3,7 @@ import os
 import unittest
 
 import numpy as np
+import numpy.testing as npt
 from astropy.table import Table
 
 import pympc
@@ -15,16 +16,45 @@ TEST_MPCORB_XEPHEM = os.path.join(
 
 
 class TestPyMPC(unittest.TestCase):
-    def _roundedAssertEqual(self, result, expected, precision=8):
-        """
-        A custom comparison function for comparing results that removes astrophysically insignificant differences
-        in the float values.
-        """
-        if isinstance(result, Table) and isinstance(expected, Table):
-            result.round(precision)
-            expected.round(precision)
 
-        self.assertEqual(result, expected)
+    def _assert_tables_equal(self, result, expected, rtol=1e-6, atol=0):
+        """
+        Compare two astropy.table.Table objects in tests.
+
+        - Verifies column names and row count.
+        - For float columns uses assert_allclose (or decimal-based comparison).
+        - For masked columns ensures masks match and compares filled values.
+        - For non-float columns uses exact array equality.
+        """
+
+        if not (isinstance(result, Table) and isinstance(expected, Table)):
+            self.fail("Both result and expected must be astropy.table.Table instances")
+
+        # schema
+        self.assertListEqual(list(result.colnames), list(expected.colnames))
+        self.assertEqual(len(result), len(expected))
+
+        for name in result.colnames:
+            a = result[name].data
+            b = expected[name].data
+
+            # normalize masked arrays
+            if np.ma.isMaskedArray(a) or np.ma.isMaskedArray(b):
+                a = np.ma.asanyarray(a)
+                b = np.ma.asanyarray(b)
+                # masks must match
+                if not np.array_equal(a.mask, b.mask):
+                    self.fail(f"Mask differs for column {name!s}")
+                a = a.filled(np.nan)
+                b = b.filled(np.nan)
+
+            # floats: tolerant compare
+            if np.issubdtype(a.dtype, np.floating) or np.issubdtype(b.dtype, np.floating):
+                npt.assert_allclose(a, b, rtol=rtol, atol=atol)
+            else:
+                # exact compare for ints/strings/objects
+                if not np.array_equal(a, b):
+                    self.fail(f"Column {name!s} differs")
 
     def setUp(self):
         self.ceres_ra = 61.78375
@@ -75,14 +105,18 @@ class TestPyMPC(unittest.TestCase):
 
     def test_observatory_data_retrieval(self):
         # Check the observatory data is as expected
-        obs_data = get_observatory_data("500")
-        self.assertEqual(obs_data, (0.0, 0.0, 0.0))
-        obs_data = get_observatory_data("950")
-        self.assertEqual(obs_data, (342.1176, 0.87764, 0.47847))
+        geocentric_tuple = (0.0, 0.0, 0.0)
+        for obs in (500, "500", "Geocentric", geocentric_tuple):
+            self.assertEqual(get_observatory_data(obs), geocentric_tuple)
+            
+        lapalma_tuple = (342.1176, 0.87764, 0.47847)
+        for obs in (950, "950", "La Palma", lapalma_tuple):
+            self.assertEqual(get_observatory_data(obs), lapalma_tuple)
 
         # Check a non-existent observatory returns ValueError
-        with self.assertRaises(ValueError):
-            get_observatory_data("NONEXISTENT")
+        for bad_obs in (1234.5, "ZZZ", "NonExistent Observatory", (1, 2), (1, 2, 3, 4)):
+            with self.assertRaises(ValueError):
+                get_observatory_data(bad_obs)
 
     def test_minor_planet_check(self):
         # Check the result is as expected
@@ -94,7 +128,7 @@ class TestPyMPC(unittest.TestCase):
             TEST_MPCORB_XEPHEM,
             chunk_size=0,
         )
-        self._roundedAssertEqual(ceres_result, self.ceres_result_geo)
+        self._assert_tables_equal(ceres_result, self.ceres_result_geo)
 
     def test_minor_planet_check_multiprocess(self):
         # The same result should be returned for a multiprocessing call
@@ -106,7 +140,7 @@ class TestPyMPC(unittest.TestCase):
             TEST_MPCORB_XEPHEM,
             chunk_size=20000,
         )
-        self._roundedAssertEqual(ceres_result, self.ceres_result_geo)
+        self._assert_tables_equal(ceres_result, self.ceres_result_geo)
 
     def test_minor_planet_check_searchrad(self):
         # No result should be returned for a search radius of 0
@@ -170,7 +204,7 @@ class TestPyMPC(unittest.TestCase):
                 TEST_MPCORB_XEPHEM,
                 observatory=observatory,
             )
-            self.assertEqual(ceres_result, self.ceres_result_geo)
+            self._assert_tables_equal(ceres_result, self.ceres_result_geo)
         # Test topocentric La Palma results are as expected
         for observatory in ("950", 950, (342.1176, 0.87764, +0.47847)):
             ceres_result = pympc.minor_planet_check(
@@ -181,7 +215,7 @@ class TestPyMPC(unittest.TestCase):
                 TEST_MPCORB_XEPHEM,
                 observatory=observatory,
             )
-            self._roundedAssertEqual(ceres_result, self.ceres_result_topo)
+            self._assert_tables_equal(ceres_result, self.ceres_result_topo)
 
         # Test a non-existent observatory returns ValueError
         with self.assertRaises(ValueError):
@@ -218,8 +252,8 @@ class TestPyMPC(unittest.TestCase):
                 dist_au=1,
                 epoch=epoch,
                 longitude=0,
-                rho_cos_phi=0,
-                rho_sin_phi=0,
+                rhocosphi=0,
+                rhosinphi=0,
             )
             self.assertEqual((ra_topo, dec_topo), (ra_geo, dec_geo))
         # An observer at the center of the earth should return the same coordinates for any longitude
@@ -231,21 +265,21 @@ class TestPyMPC(unittest.TestCase):
                 dist_au=1,
                 epoch=epoch,
                 longitude=longitude,
-                rho_cos_phi=0,
-                rho_sin_phi=0,
+                rhocosphi=0,
+                rhosinphi=0,
             )
             self.assertEqual((ra_topo, dec_topo), (ra_geo, dec_geo))
         # A distance of 0 should return a ZeroDivisionError
         dist_au = 0
         with self.assertRaises(ZeroDivisionError):
-            ra_topo, dec_topo = pympc.pympc.equitorial_geocentric_to_topocentric(
+            _ = pympc.pympc.equitorial_geocentric_to_topocentric(
                 ra_geo=0,
                 dec_geo=0,
                 dist_au=dist_au,
                 epoch=epoch,
                 longitude=0,
-                rho_cos_phi=0,
-                rho_sin_phi=0,
+                rhocosphi=0,
+                rhosinphi=0,
             )
         # An observer not at the center of the earth should return different coordinates for different longitudes
         coo_topo = [
@@ -270,10 +304,10 @@ class TestPyMPC(unittest.TestCase):
                 dist_au=1,
                 epoch=epoch,
                 longitude=0,
-                rho_cos_phi=0.5,
-                rho_sin_phi=0.5,
+                rhocosphi=0.5,
+                rhosinphi=0.5,
             )
-            self._roundedAssertEqual(_topo_coo_ret, _coo_topo)
+            npt.assert_allclose(_topo_coo_ret, _coo_topo, rtol=1e-6, atol=0)
 
     def test_major_moon_check(self):
         moon_result = pympc.minor_planet_check(
@@ -285,7 +319,7 @@ class TestPyMPC(unittest.TestCase):
             observatory=950,
             chunk_size=0,
         )
-        self.assertEqual(moon_result, self.moon_result_topo)
+        self._assert_tables_equal(moon_result, self.moon_result_topo)
 
 
 class TestGenerateMPCORB(unittest.TestCase):

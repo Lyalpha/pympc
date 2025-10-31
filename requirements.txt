@@ -1,4 +1,6 @@
 ephem>=4.1
 astropy>=4.2
+numpy>=1.18
 pandas>=1.0
 pyerfa>=2.0.0.0
+requests
