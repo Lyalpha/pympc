@@ -58,14 +58,6 @@ major and minor bodies at a given location.
 
 ### Interactive searching
 
-> **Note:** All information is output in logging. If you do not have a lgger set up in a session, running:
-> ```python
-> import logging
-> fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-> logging.basicConfig(format=fmt, level=logging.INFO)
-> ```
-> prior to the examples will show this information.
-
 Within an interpretor session, define a search location, epoch and radius and run the search.
 
 ```python
@@ -111,6 +103,17 @@ pympc.minor_planet_check(
 
 The search will by default search both major and minor bodies. These can be toggled via the boolean arguments
 `include_minor_bodies` and `include_major_bodies` arguments.
+
+### Adding logging to interactive use
+
+The package is silent by default. Call 
+
+```python
+import pympc
+pympc.add_logging(level="INFO")  # or "DEBUG"/"WARNING"/"ERROR"
+```
+
+to enable logging to stdout.
 
 ### Defining an observer
 
@@ -165,10 +168,10 @@ Jupiter 69.83640596092219 21.603370530186574 2970.0900089441457 -2.46
 The major body check takes much less than one second. The minor body check should take of order a few seconds, 
 depending on multiprocessing capabilities.
 
-The private function which actually performs the calculation is `_minor_planet_check()` (note leading underscore).
-This can be called directly, to avoid the overhead associated with converting input arguments in `minor_planet_check()`,
-if you provide them directly as required (see `_minor_planet_check()` docstring). Note that in this case a list of 
-tuples is returned, rather than an astropy table.
+The private function which actually performs the calculation is `pympc.pympc._minor_planet_check()` (note leading underscore).
+This can be called directly, to avoid the overhead associated with converting input arguments in `pympc.minor_planet_check()`,
+if you provide them directly as required (see `pympc.pympc._minor_planet_check()` docstring). Note that in this case a list of 
+tuples is returned, rather than an astropy table. Equivalently, `pympc.pympc._planet_hill_sphere_check()` exists.
 
 By default, the program does calculate positions of bodies in the catalogue multiprocessed. To switch this off set
 `chunk_size = 0`, i.e.:

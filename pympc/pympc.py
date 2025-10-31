@@ -1,9 +1,8 @@
 import argparse
 import gzip
-import importlib.resources
-import logging
 import os
 import shutil
+import sys
 import tempfile
 import urllib.request
 import warnings
@@ -19,10 +18,20 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 from astropy.time import Time
+from loguru import logger
+from rich.progress import wrap_file
 
-from .utils import get_observatory_data
+from .utils import add_logging, get_observatory_data
 
-logger = logging.getLogger(__name__)
+# No logging by default incase being used as a library
+logger.disable("pympc")
+
+__all__ = [
+    "update_catalogue",
+    "generate_mpcorb_xephem",
+    "minor_planet_check",
+    "planet_hill_sphere_check",
+]
 
 # Hill radii (in au) from JPL DE405
 MAJOR_BODIES = {
@@ -82,10 +91,6 @@ DEGTORAD = 1 / RADTODEG
 SOLAR_PARALLAX_ARCSEC = 8.794143
 SOLAR_PARALLAX_RAD = (SOLAR_PARALLAX_ARCSEC / 3600.0) * DEGTORAD
 
-__ref = importlib.resources.files(__package__) / "data/obs_codes.npy"
-with importlib.resources.as_file(__ref) as __ref_file:
-    OBS_CODE_ARRAY = np.load(__ref_file)
-
 
 def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanup=True):
     """
@@ -112,15 +117,50 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanu
     """
 
     def download_cat(url, filename):
-        fd, temp_filepath = tempfile.mkstemp(
+        gz_fd, gz_path = tempfile.mkstemp(suffix=".gz", dir=cat_dir)
+        os.close(gz_fd)
+        final_fd, temp_filepath = tempfile.mkstemp(
             suffix=os.path.splitext(filename)[1], dir=cat_dir
         )
-        response = urllib.request.urlopen(url)
-        with open(temp_filepath, "wb") as f:
-            f.write(gzip.decompress(response.read()))
-        filepath = os.path.join(os.path.dirname(temp_filepath), filename)
-        shutil.move(temp_filepath, filepath)
-        return filepath
+        os.close(final_fd)
+
+        try:
+            logger.info(f"downloading {filename} from {url}")
+            response = urllib.request.urlopen(url)
+            total = response.getheader("Content-Length")
+            try:
+                total = int(total) if total is not None else 0
+            except (TypeError, ValueError):
+                total = 0
+
+            chunk_size = 16 * 1024
+            # use rich's default progress by simply calling wrap_file without custom Progress
+            with wrap_file(response, total or 0, description="") as rf, open(gz_path, "wb") as gz_f:
+                while True:
+                    chunk = rf.read(chunk_size)
+                    if not chunk:
+                        break
+                    gz_f.write(chunk)
+
+            logger.info(f"saved {filename} to temporary gz {gz_path}")
+
+            # decompress gz into the temp filepath
+            logger.info(f"decompressing {filename}")
+            with gzip.open(gz_path, "rb") as gz_f, open(temp_filepath, "wb") as out_f:
+                shutil.copyfileobj(gz_f, out_f)
+
+            filepath = os.path.join(os.path.dirname(temp_filepath), filename)
+            shutil.move(temp_filepath, filepath)
+            logger.info(f"saved to {filepath}")
+            return filepath
+        except Exception:
+            for p in (gz_path, temp_filepath):
+                try:
+                    if os.path.exists(p):
+                        os.remove(p)
+                except OSError:
+                    pass
+            raise
 
     cats_to_process = [("mpcorb", 0)]
     for include, additional_cat in [
@@ -136,9 +176,7 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanu
         catalogue = CATALOGUES[cat_name]
         cat_filename = catalogue["filename"]
         cat_url = catalogue["url"]
-        logger.info("downloading from {}".format(cat_url))
         cat_filepath = download_cat(cat_url, cat_filename)
-        logger.info("saved as {}".format(cat_filepath))
 
         cat_filepaths[idx] = cat_filepath
 
@@ -153,7 +191,7 @@ def update_catalogue(include_nea=True, include_comets=True, cat_dir=None, cleanu
     if cleanup:
         for cat_filepath in cat_filepaths:
             if cat_filepath is not None:
-                logging.info(f"removing {cat_filepath}")
+                logger.info(f"removing {cat_filepath}")
                 os.remove(cat_filepath)
     return xephem_csv_filepath
 
@@ -176,7 +214,7 @@ def generate_mpcorb_xephem(mpcorb_filepath, nea_filepath=None, comet_filepath=No
             ("Epoch_month", "Month_of_perihelion"),
             ("Epoch_day", "Day_of_perihelion"),
         ):
-            comet_json[column1].fillna(comet_json[column2], inplace=True)
+            comet_json.loc[:, column1] = comet_json[column1].fillna(comet_json[column2])
         # set the principal deisg column, used to compare to main mpcorb catalogue
         comet_json.rename(
             columns={"Designation_and_name": "Principal_desig"}, inplace=True
@@ -483,7 +521,6 @@ def _minor_planet_check(
                 f"xephem db csv file not found at {xephem_filepath}.\n"
                 "run pympc.update_catalogue() if necessary."
             )
-            raise
         if c == 0:
             results = _cone_search_xephem_entries(
                 xephem_db,
@@ -872,6 +909,7 @@ def _cone_search(
             body.mag,
             xephem_str or body.writedb(),
         ]
+    return None
 
 
 def equitorial_geocentric_to_topocentric(
@@ -1038,11 +1076,9 @@ def _console_script(args=None):
     )
     args_dict = vars(parser.parse_args(args))
 
-    # Set up logging for command-line usage
-    log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-    log_level = log_levels[min(len(log_levels) - 1, args_dict["verbose"])]
-    fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(format=fmt, level=log_level)
+    log_level_lookup = {0: "WARNING", 1: "INFO", 2: "DEBUG"}
+    log_level = log_level_lookup.get(min(args_dict["verbose"], 2))
+    add_logging(log_level)
 
     try:
         epoch = float(args_dict["epoch"])
@@ -1056,6 +1092,13 @@ def _console_script(args=None):
     else:
         xephem_dir = args_dict["cat_dir"] or tempfile.gettempdir()
         xephem_filepath = os.path.join(xephem_dir, MPCORB_XEPHEM)
+        if not os.path.exists(xephem_filepath):
+            logger.error(
+                f"xephem db csv file not found at {xephem_filepath}.\n"
+                "specify a --cat-dir that contains the catalogue, or run "
+                "with --update-mpcorb to download the latest catalogue."
+            )
+            sys.exit(1)
 
     if args_dict["match_to_major_bodies"]:
         print("Major and Minor Planet Check:")

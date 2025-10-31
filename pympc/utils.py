@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 import tempfile
@@ -7,8 +6,10 @@ from typing import Tuple, Union
 import numpy as np
 import pandas as pd
 import requests
+from loguru import logger
 
-logger = logging.getLogger(__name__)
+# No logging by default incase being used as a library
+logger.disable("pympc")
 
 MPC_OBSCODES_URL = "https://data.minorplanetcenter.net/api/obscodes"
 
@@ -156,3 +157,12 @@ def get_observatory_data(
     raise ValueError(f"observatory '{observatory}' not found by code or name.\n"
                      f"try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
                      f"cache and fetch the latest data from the MPC.")
+
+
+def add_logging(level="INFO", sink=sys.stderr):
+    """
+    Enable logging for the application.
+    """
+    logger.enable("pympc")
+    logger.remove()
+    logger.add(sink, level=level)
