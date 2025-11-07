@@ -17,4 +17,4 @@ def update_obscode_cache() -> None:
     ensure_obs_codes_cached(update=True)
 
 
-__version__ = "2.dev0"
+__version__ = "1.4.0"
