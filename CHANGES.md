@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] 
+ - Catch `RuntimeError` raised by [PyEphem (#239)](https://github.com/brandon-rhodes/pyephem/issues/239) when a 
+   body is near-parabolic and reemit as a warning instead.
+ - Remove lingering prints in favour of logging.
+
 ## [1.4.0]
  - Python 3.8 is minimum supported version.
  - Switched Observatory code fetching to use MPC's API and removed pre-bundled observatory codes file.

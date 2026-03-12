@@ -879,11 +879,18 @@ def _cone_search(
     rhosinphi,
     buffer,
 ):
-    separation = (
-        3600.0 * RADTODEG * (float(ephem.separation((body.a_ra, body.a_dec), coo)))
-    )
+    try:
+        separation_rad = ephem.separation((body.a_ra, body.a_dec), coo)
+    except RuntimeError as e:
+        warnings.warn(
+            f"could not calculate separation for body {body.name}: '{str(e)}'",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return None
+    separation_arcsec = 3600.0 * RADTODEG * separation_rad
     # First match geocentric positions against the buffered search radius
-    if separation <= search_radius + buffer and body.mag <= max_mag:
+    if separation_arcsec <= search_radius + buffer and body.mag <= max_mag:
         ra, dec = float(body.a_ra), float(body.a_dec)
         if any([longitude, rhocosphi, rhosinphi]):
             # Perform a topocentric correction
@@ -896,16 +903,16 @@ def _cone_search(
                 rhocosphi,
                 rhosinphi,
             )
-            separation = 3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
+            separation_arcsec = 3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
             # Apply the search radius check again, here without the buffer since we now have
             # topocentric coordinates
-            if separation > search_radius:
+            if separation_arcsec > search_radius:
                 return None
         return [
             body.name,
             ra * RADTODEG,
             dec * RADTODEG,
-            separation,
+            separation_arcsec,
             body.mag,
             xephem_str or body.writedb(),
         ]
@@ -1101,9 +1108,9 @@ def _console_script(args=None):
             sys.exit(1)
 
     if args_dict["match_to_major_bodies"]:
-        print("Major and Minor Planet Check:")
+        logger.info("major and minor planet checking")
     else:
-        print("Minor Planet Check:")
+        logger.info("minor planet check:")
     results = minor_planet_check(
         ra=args_dict["ra"],
         dec=args_dict["dec"],
@@ -1121,11 +1128,11 @@ def _console_script(args=None):
         print(results.pprint_all())
     else:
         if args_dict["match_to_major_bodies"]:
-            print("No major or minor bodies found.")
+            logger.info("no major or minor bodies found.")
         else:
-            print("No minor planets found.")
+            logger.info("no minor planets found.")
     if args_dict["hill_sphere_check"]:
-        print("Planet Hill Sphere Check:")
+        logger.info("planet hill sphere checking")
         results_hill = planet_hill_sphere_check(
             ra=args_dict["ra"],
             dec=args_dict["dec"],
@@ -1136,4 +1143,6 @@ def _console_script(args=None):
             del results_hill["xephem_str"]
             print(results_hill.pprint_all())
         else:
-            print("Not found to be inside any planet's hill sphere.")
+            logger.info("not found to be inside any planet's hill sphere.")
+    logger.info("finished.")
+
