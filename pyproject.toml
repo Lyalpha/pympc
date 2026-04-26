@@ -34,7 +34,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pre-commit",
+    "prek",
     "ruff",
     "twine",
     "ty",

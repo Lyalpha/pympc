@@ -7,7 +7,7 @@ help:
 	@echo "  make type               Type check with ty (all files)"
 	@echo "  make test               Run unit tests"
 	@echo "  make check-all          Run all checks (lint, format, type, test)"
-	@echo "  make pre-commit         Run pre-commit hooks on all files"
+	@echo "  make prek               Run prek (=pre-commit) hooks on all files"
 	@echo "  make build              Build the package wheel"
 	@echo "  make publish            Publish package to PyPI"
 
@@ -25,8 +25,8 @@ test:
 
 check-all: lint format type test
 
-pre-commit:
-	uv run pre-commit run --all-files
+prek:
+	uv run prek run --all-files
 
 build:
 	uv build
