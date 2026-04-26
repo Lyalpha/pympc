@@ -35,12 +35,17 @@ uv sync --dev
 
 First, if we want to search for minor bodies, we need to grab the orbital elements catalogue from the Minor
 Planet Center. This must be done at least once prior to any searches and can be run to overwrite the catalogues
-with the latest versions. The default call signature is shown.
+with the latest versions. The default call signature is shown for both the Python API and command line interface:
+**Python API**
 ```python
 import pympc
 xephem_cat =pympc.update_catalogue()
 print(xephem_cat)
 # e.g. /tmp/xephem_astorb_20260424.csv
+```
+**Command line**
+```bash
+pympc update-catalogue
 ```
 
 The base asteroid catalogue downloaded by default will be Lowell Observatory's
@@ -52,13 +57,8 @@ base asteroid entries based on the values of the `include_nea` and `include_come
 To use the MPC orbital catalogue as the base asteroid source instead, pass
 `catalogue_source="mpcorb"` to `pympc.update_catalogue()`.
 
-To disable download progress bars (e.g. in notebook), pass
-`show_progress=False` to `pympc.update_catalogue()`.
-
-It will create a csv file in the
-[xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501) and return
-the filepath to this file. Filenames follow the pattern `xephem_{source}_{YYYYMMDD}.csv`.
-By default, the file will be saved in the user's temporary directory - this can be changed by setting the `cat_dir` argument.
+It will create a csv file in the [xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501) and return the filepath to this file.
+Filenames follow the pattern `xephem_{source}_{YYYYMMDD}.csv`. By default, the file will be saved in the user's temporary directory - this can be changed by setting the `cat_dir` argument.
 
 The catalogue should be updated periodically to ensure the most accurate positions are calculated, see
 [Limitations](#Limitations) for more details.
@@ -68,22 +68,37 @@ Downloading a minor-body catalogue isn't necessary if you just want to do major 
 ### Fetching observatory information
 
 The Minor Planet Center provides a list of observatory codes and their coordinates via their [Observatory
-Codes API](https://www.minorplanetcenter.net/mpcops/documentation/obscodes-api/). The first time a minor body search is performed, this list will be downloaded and cached
-locally for all future use. If you wish to explicitly update this cache, you can call `pympc.update_obscode_cache()` to
-download the latest version.
+Codes API](https://www.minorplanetcenter.net/mpcops/documentation/obscodes-api/). The first time a minor body search is performed (or `get_observatory_data()` is called), this list will be downloaded and cached locally for all future use.
+The cache is stored in the OS-specific user-cache directory.
 
-From the command line, you can alternatively refresh this cache with:
+To explicitly refresh the cache with the latest MPC data, call from Python:
+
+```python
+import pympc
+pympc.update_obscode_cache()
+```
+
+Or from the command line:
 
 ```bash
 pympc update-obscode-cache
 ```
 
-> **Note**: The observatory codes cache is stored in the user's OS-specific cache directory.
+> **Note**: You only need to refresh the cache if you expect recently added or renamed observatories to be available. The cache persists between sessions and across package upgrades.
 
 ## Usage
 
-Having downloaded the catalogue (see [Fetching the orbital elements catalogue](#Fetching the orbital elements catalogue)), we can now search for both
-major and minor bodies at a given location.
+After downloading a catalogue (see [Fetching the orbital elements catalogue](#Fetching the orbital elements catalogue)),
+we can search for both major and minor bodies, and planet Hill sphere intersections at a given location.
+
+## CLI
+
+Installation of the package creates a `pympc` command with the following structure:
+
+![pympc CLI demo](docs/assets/cli_demo.svg)
+
+Use `pympc update-catalogue` first, to fetch catalogues and generate xephem output.
+
 
 ### Interactive searching
 
@@ -166,30 +181,6 @@ on the Earth's surface. For this reason it is crucial to pass either an
 [observatory code](https://www.minorplanetcenter.net/iau/lists/ObsCodes.html), an IAU-recognised name of an observatory,
 or a tuple containing the observatory information. See the documentation for `pympc.minor_planet_check()` for more details.
 
-### Console script searching
-
-Installation of the package creates a `pympc` command with subcommands:
-
-```bash
-pympc --help
-pympc check --help
-pympc update-catalogue --help
-pympc update-obscode-cache --help
-```
-
-The `check` command supports modes `all`, `minor`, `major`, and `hillspheres`:
-
-```bash
-pympc check all 230.028 -11.774 2019-01-01T00:00 -r 30
-pympc check minor 230.028 -11.774 58484.0 --catalogue-source astorb
-pympc check hillspheres 69.122371 21.11505 60695.428680
-```
-
-Use `pympc update-catalogue` to fetch catalogues and generate xephem output. Select base source with
-`--catalogue-source {astorb,mpcorb}`. MPC NEA and comet overlays are enabled by default; disable with
-`--no-nea` and/or `--no-comets`. Disable progress bars with `--no-progress`.
-
-
 
 ### Major bodies (planets, moons)
 
@@ -203,30 +194,9 @@ sphere of influence of a planet. This is done by calling `planet_hill_sphere_che
 
 #### Example of a minor Jovian moon
 
-```bash
-pympc check all 69.122371 21.11505 60695.428680 -r 5
-```
-
 This object is not in the major body catalogue of `pyephem`, but does provide a match to Jupiter's Hill sphere.
-Output:
 
-```
-Search Parameters:
-  Position (RA, Dec): (69.122371°, 21.115050°)
-  Search Radius: 5.00 arcsec
-  Epoch: 60695.428680
-  Observatory: Custom (0.5000, 0.400000, 1.000000)
-  Search Mode: All (Minor & Major & Hill Sphere)
-
-Minor and Major Body Check Results (radius=5.0 arcsec)
-No matches found.
-Hill Sphere Check Results
-┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
-┃ name    ┃        ra ┃       dec ┃ separation ┃   mag ┃
-┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
-│ Jupiter │ 69.836507 │ 21.602779 │   2969.107 │ -2.46 │
-└─────────┴───────────┴───────────┴────────────┴───────┘
-```
+![Minor Jovian Moon demo](docs/assets/jovian_moon_demo.svg)
 
 ## Speed and multiprocessing
 The major body check takes much less than one second. The minor body check should take of order a few seconds,

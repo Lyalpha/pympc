@@ -82,8 +82,34 @@ def _fetch_obscodes() -> np.ndarray:
 
 def ensure_obs_codes_cached(update: bool = False) -> str:
     """
-    Ensure the obscodes cache exists. If update=True, force re-download.
-    Returns the cache file path.
+    Ensure the MPC observatory-code data is available locally.
+
+    On the first call (or when ``update=True``), the current list of
+    observatory codes is downloaded from the Minor Planet Center API and
+    saved as a NumPy structured array in the OS-specific user-cache
+    directory (e.g. ``~/.cache/pympc/obs_codes.npy`` on Linux).  Subsequent
+    calls skip the download unless ``update=True`` is passed.
+
+    Parameters
+    ----------
+    update : bool, optional
+        Force a fresh download even if a cached file already exists.
+        Defaults to ``False``.
+
+    Returns
+    -------
+    str
+        Absolute path to the local cache file.
+
+    Raises
+    ------
+    requests.HTTPError
+        If the HTTP request to the MPC API fails.
+
+    See Also
+    --------
+    update_obscode_cache : Convenience wrapper that discards the return value.
+    get_observatory_data : Uses the cache to resolve a code or name to coordinates.
     """
     cache = _cache_path()
     if os.path.exists(cache) and not update:
@@ -182,6 +208,31 @@ def add_logging(level="INFO", sink=sys.stderr):
 
 def update_obscode_cache() -> None:
     """
-    Update the observatory codes cache by re-downloading from the MPC.
+    Download the latest MPC observatory codes and update the local cache.
+
+    This is a convenience wrapper around :func:`ensure_obs_codes_cached`
+    that forces a fresh download regardless of whether a cached copy already
+    exists.  Call this periodically to pick up new or renamed observatories.
+
+    The cache is stored in the OS-specific user-cache directory:
+
+    * **Linux / other** — ``$XDG_CACHE_HOME/pympc/`` (default
+      ``~/.cache/pympc/``)
+    * **macOS** — ``~/Library/Caches/pympc/``
+    * **Windows** — ``%LOCALAPPDATA%\\pympc\\``
+
+    From the command line this is equivalent to running::
+
+        pympc update-obscode-cache
+
+    Raises
+    ------
+    requests.HTTPError
+        If the HTTP request to the MPC API fails.
+
+    See Also
+    --------
+    ensure_obs_codes_cached : Lower-level function that skips the download
+        if an up-to-date cache already exists.
     """
     ensure_obs_codes_cached(update=True)
