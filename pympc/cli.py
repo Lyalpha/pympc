@@ -216,13 +216,13 @@ def update_obscode_cache_cmd(ctx, verbose):
 @cli.command("check")
 @click.argument(
     "mode",
-    type=click.Choice(["all", "minor", "major", "hillspheres"], case_sensitive=False),
+    type=click.Choice(["all", "minor", "major", "hillsphere"], case_sensitive=False),
     default="all",
     required=False,
 )
-@click.argument("ra", type=float)
-@click.argument("dec", type=float)
-@click.argument("epoch", type=str)
+@click.argument("ra", type=float, help="Right Ascension in decimal degrees (e.g. 69.122371).")
+@click.argument("dec", type=float, help="Declination in decimal degrees (e.g. 21.11505).")
+@click.argument("epoch", type=str, help="Epoch of the position, either as MJD (e.g. 60695.42868) or ISO datetime (e.g. 2019-01-01T00:00:00).")
 @click.option(
     "-v",
     "--verbose",
@@ -313,7 +313,7 @@ def check_cmd(
     mode_display = (
         mode.title() if mode != "all" else "All (Minor & Major & Hill Sphere)"
     )
-    if mode.lower() != "hillspheres":
+    if mode.lower() != "hillshpere":
         console.print(f"  Search Mode: {mode_display}")
         if max_mag is not None:
             console.print(f"  Max Magnitude: {max_mag}")
@@ -342,7 +342,7 @@ def check_cmd(
         title = f"{body_type} Body Check Results (radius={radius} arcsec)"
         _render_astropy_table(title, table)
 
-    if mode in ("all", "hillspheres"):
+    if mode in ("all", "hillsphere"):
         hill_table = planet_hill_sphere_check(
             ra=ra,
             dec=dec,

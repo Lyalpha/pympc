@@ -190,7 +190,7 @@ the `include_major_bodies` argument to `minor_planet_check()` when doing interac
 
 Additionally, `pympc` can perform a Hill sphere check for a position, to ensure it is not within the gravitational
 sphere of influence of a planet. This is done by calling `planet_hill_sphere_check()` interactively, or adding
-`pympc check hillspheres ...` at the command line.
+`pympc check hillshpere ...` at the command line.
 
 #### Example of a minor Jovian moon
 
