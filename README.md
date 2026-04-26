@@ -211,12 +211,21 @@ This object is not in the major body catalogue of `pyephem`, but does provide a 
 Output:
 
 ```
-Major and Minor Planet Check:
-No major or minor bodies found.
-Planet Hill Sphere Check:
-  name          ra               dec             separation      mag
-------- ----------------- ------------------ ------------------ -----
-Jupiter 69.83640596092219 21.603370530186574 2970.0900089441457 -2.46
+Search Parameters:
+  Position (RA, Dec): (69.122371°, 21.115050°)
+  Search Radius: 5.00 arcsec
+  Epoch: 60695.428680
+  Observatory: Custom (0.5000, 0.400000, 1.000000)
+  Search Mode: All (Minor & Major & Hill Sphere)
+
+Minor and Major Body Check Results (radius=5.0 arcsec)
+No matches found.
+Hill Sphere Check Results
+┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
+┃ name    ┃        ra ┃       dec ┃ separation ┃   mag ┃
+┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
+│ Jupiter │ 69.836507 │ 21.602779 │   2969.107 │ -2.46 │
+└─────────┴───────────┴───────────┴────────────┴───────┘
 ```
 
 ## Speed and multiprocessing
