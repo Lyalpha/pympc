@@ -1,0 +1,35 @@
+.PHONY: help lint format type test all check-all build publish
+
+help:
+	@echo "Usage:"
+	@echo "  make lint               Lint code with ruff (all files)"
+	@echo "  make format             Format code with ruff (all files)"
+	@echo "  make type               Type check with ty (all files)"
+	@echo "  make test               Run unit tests"
+	@echo "  make check-all          Run all checks (lint, format, type, test)"
+	@echo "  make pre-commit         Run pre-commit hooks on all files"
+	@echo "  make build              Build the package wheel"
+	@echo "  make publish            Publish package to PyPI"
+
+lint:
+	uv run ruff check pympc test --fix
+
+format:
+	uv run ruff format pympc test
+
+type:
+	uv run ty check pympc test
+
+test:
+	uv run python -m unittest -v
+
+check-all: lint format type test
+
+pre-commit:
+	uv run pre-commit run --all-files
+
+build:
+	uv build
+
+publish: build
+	uv publish

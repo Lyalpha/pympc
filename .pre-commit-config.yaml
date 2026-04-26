@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=10000"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.9
+    hooks:
+      - id: ruff
+        types_or: [python, pyi]
+        args: [--fix, --config=pyproject.toml]
+      - id: ruff-format
+        types_or: [python, pyi]
+        args: [--config=pyproject.toml]
+
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty check
+        entry: uv run ty check pympc test
+        language: system
+        pass_filenames: false
