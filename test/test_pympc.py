@@ -1,13 +1,16 @@
 import datetime
+import json
 import os
+import tempfile
 import unittest
 
 import numpy as np
 import numpy.testing as npt
 from astropy.table import Table
+from astropy.time import Time
 
 import pympc
-from pympc.pympc import generate_mpcorb_xephem
+from pympc.pympc import generate_xephem_catalogue
 from pympc.utils import get_observatory_data
 
 TEST_MPCORB_XEPHEM = os.path.join(
@@ -15,8 +18,49 @@ TEST_MPCORB_XEPHEM = os.path.join(
 )
 
 
-class TestPyMPC(unittest.TestCase):
+def _format_astorb_line(
+    number="",
+    name="",
+    orbit_computer="E. Bowell",
+    H="3.34",
+    G=0.15,
+    bv="",
+    diameter="",
+    taxon="",
+    codes=(0, 0, 0, 0, 0, 0),
+    arc=56959,
+    num_obs=4750,
+    epoch=(1996, 4, 27),
+    mean_anomaly=80.477333,
+    peri=71.802404,
+    node=80.659857,
+    inclination=10.600303,
+    eccentricity=0.07604100,
+    semimajor_axis=2.76788714,
+    orbit_comp_date=(1996, 4, 14),
+    ceu=0.0,
+    ceu_rate=0.0,
+    ceu_date=(1996, 4, 19),
+    next_peu=(0.0, (1996, 5, 30)),
+    max_peu=(0.0, (2004, 1, 11)),
+    post_obs_peu=(0.0, (2004, 1, 11)),
+):
+    return (
+        f"{str(number):>6} {str(name):<18} {str(orbit_computer):<15} {str(H):>5} {G:5.2f} "
+        f"{str(bv):<4} {str(diameter):>5} {str(taxon):<4} "
+        f"{codes[0]:4d}{codes[1]:4d}{codes[2]:4d}{codes[3]:4d}{codes[4]:4d}{codes[5]:4d} "
+        f"{arc:5d}{num_obs:5d} {epoch[0]:04d}{epoch[1]:02d}{epoch[2]:02d} "
+        f"{mean_anomaly:10.6f} {peri:10.6f} "
+        f"{node:10.6f}{inclination:10.6f} {eccentricity:10.8f}{semimajor_axis:13.8f} "
+        f"{orbit_comp_date[0]:04d}{orbit_comp_date[1]:02d}{orbit_comp_date[2]:02d} "
+        f"{ceu:7.2f} {ceu_rate:8.2f} {ceu_date[0]:04d}{ceu_date[1]:02d}{ceu_date[2]:02d}"
+        f" {next_peu[0]:7.2f} {next_peu[1][0]:04d}{next_peu[1][1]:02d}{next_peu[1][2]:02d}"
+        f" {max_peu[0]:7.2f} {max_peu[1][0]:04d}{max_peu[1][1]:02d}{max_peu[1][2]:02d}"
+        f" {post_obs_peu[0]:7.2f} {post_obs_peu[1][0]:04d}{post_obs_peu[1][1]:02d}{post_obs_peu[1][2]:02d}"
+    )
 
+
+class TestPyMPC(unittest.TestCase):
     def _assert_tables_equal(self, result, expected, rtol=1e-6, atol=0):
         """
         Compare two astropy.table.Table objects in tests.
@@ -49,7 +93,9 @@ class TestPyMPC(unittest.TestCase):
                 b = b.filled(np.nan)
 
             # floats: tolerant compare
-            if np.issubdtype(a.dtype, np.floating) or np.issubdtype(b.dtype, np.floating):
+            if np.issubdtype(a.dtype, np.floating) or np.issubdtype(
+                b.dtype, np.floating
+            ):
                 npt.assert_allclose(a, b, rtol=rtol, atol=atol)
             else:
                 # exact compare for ints/strings/objects
@@ -108,7 +154,7 @@ class TestPyMPC(unittest.TestCase):
         geocentric_tuple = (0.0, 0.0, 0.0)
         for obs in (500, "500", "Geocentric", geocentric_tuple):
             self.assertEqual(get_observatory_data(obs), geocentric_tuple)
-            
+
         lapalma_tuple = (342.1176, 0.87764, 0.47847)
         for obs in (950, "950", "La Palma", lapalma_tuple):
             self.assertEqual(get_observatory_data(obs), lapalma_tuple)
@@ -116,7 +162,7 @@ class TestPyMPC(unittest.TestCase):
         # Check a non-existent observatory returns ValueError
         for bad_obs in (1234.5, "ZZZ", "NonExistent Observatory", (1, 2), (1, 2, 3, 4)):
             with self.assertRaises(ValueError):
-                get_observatory_data(bad_obs)
+                get_observatory_data(bad_obs)  # type: ignore
 
     def test_minor_planet_check(self):
         # Check the result is as expected
@@ -152,7 +198,7 @@ class TestPyMPC(unittest.TestCase):
             TEST_MPCORB_XEPHEM,
             chunk_size=20000,
         )
-        self.assertEqual(ceres_result, [])
+        self.assertEqual(len(ceres_result), 0)
 
         # Check a 100% sky coverage search radius returns all minor objects
         all_results = pympc.minor_planet_check(
@@ -189,7 +235,7 @@ class TestPyMPC(unittest.TestCase):
             max_mag=0,
             chunk_size=20000,
         )
-        self.assertEqual(ceres_result, [])
+        self.assertEqual(len(ceres_result), 0)
 
     def test_minor_planet_check_observatory(self):
         # Passing an observatory should return the correct results, regardless of
@@ -335,7 +381,10 @@ class TestGenerateMPCORB(unittest.TestCase):
         )
 
     def test_generate_mpcorb_xephem(self):
-        self.csv_file = generate_mpcorb_xephem(self.json_file)
+        self.csv_file = generate_xephem_catalogue(
+            base_filepath=self.json_file,
+            catalogue_source="mpcorb",
+        )
 
         self.assertTrue(os.path.exists(self.csv_file))
 
@@ -348,3 +397,128 @@ class TestGenerateMPCORB(unittest.TestCase):
     def tearDown(self):
         if self.csv_file is not None and os.path.exists(self.csv_file):
             os.remove(self.csv_file)
+
+
+class TestGenerateASTORB(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.astorb_file = os.path.join(self.tmpdir.name, "astorb.dat")
+        self.nea_file = os.path.join(self.tmpdir.name, "nea.json")
+        self.csv_file = None
+
+        astorb_lines = [
+            _format_astorb_line(
+                number="1",
+                name="Ceres",
+                H="3.34",
+                G=0.12,
+                bv="0.72",
+                diameter="913.0",
+                taxon="G?",
+                arc=56959,
+                num_obs=4750,
+                epoch=(1996, 4, 27),
+                mean_anomaly=80.477333,
+                peri=71.802404,
+                node=80.659857,
+                inclination=10.600303,
+                eccentricity=0.07604100,
+                semimajor_axis=2.76788714,
+                orbit_comp_date=(1996, 4, 14),
+                ceu=0.03,
+                ceu_rate=0.0,
+                ceu_date=(1996, 4, 19),
+                next_peu=(0.03, (1996, 5, 30)),
+                max_peu=(0.03, (2004, 1, 11)),
+                post_obs_peu=(0.03, (2004, 1, 11)),
+            ),
+            _format_astorb_line(
+                number="",
+                name="2024 AB",
+                H="21.40",
+                G=0.15,
+                arc=120,
+                num_obs=50,
+                epoch=(2024, 9, 1),
+                mean_anomaly=22.500000,
+                peri=120.000000,
+                node=88.000000,
+                inclination=7.500000,
+                eccentricity=0.12345678,
+                semimajor_axis=1.98765432,
+                orbit_comp_date=(2024, 8, 28),
+                ceu=1.0,
+                ceu_rate=0.5,
+                ceu_date=(2024, 9, 1),
+                next_peu=(2.0, (2024, 10, 1)),
+                max_peu=(3.0, (2025, 1, 1)),
+                post_obs_peu=(1.5, (2025, 1, 2)),
+            ),
+        ]
+        with open(self.astorb_file, "w") as f:
+            f.write("\n".join(astorb_lines) + "\n")
+
+        nea_rows = [
+            {
+                "Number": "",
+                "Name": "2024 AB",
+                "Principal_desig": "2024 AB",
+                "Epoch": Time("2024-09-02", scale="tt").jd,
+                "M": 44.0,
+                "Peri": 121.0,
+                "Node": 89.0,
+                "i": 8.0,
+                "e": 0.2,
+                "a": 1.8,
+                "n": 360.0 / (365.25689 * 1.8**1.5),
+                "H": 20.0,
+                "G": 0.25,
+            }
+        ]
+        with open(self.nea_file, "w") as f:
+            json.dump(nea_rows, f)
+
+    def test_generate_xephem_catalogue_astorb(self):
+        self.csv_file = generate_xephem_catalogue(
+            base_filepath=self.astorb_file,
+            catalogue_source="astorb",
+        )
+        self.assertTrue(os.path.exists(self.csv_file))
+        with open(self.csv_file, "r") as f:
+            generated_lines = [line.strip() for line in f if line.strip()]
+
+        expected_epoch = Time("1996-04-27", scale="tt").utc.decimalyear
+        expected_n = 360.0 / (365.25689 * 2.76788714**1.5)
+        self.assertEqual(len(generated_lines), 2)
+        self.assertEqual(
+            generated_lines[0],
+            f"Ceres,e,10.60030300,80.65985700,71.80240400,2.76788714,{expected_n:.8f},0.07604100,80.47733300,{expected_epoch:.8f},2000,3.34000000,0.12000000",
+        )
+
+    def test_generate_xephem_catalogue_astorb_with_nea_overlay(self):
+        self.csv_file = generate_xephem_catalogue(
+            base_filepath=self.astorb_file,
+            nea_filepath=self.nea_file,
+            catalogue_source="astorb",
+        )
+        with open(self.csv_file, "r") as f:
+            generated_lines = [line.strip() for line in f if line.strip()]
+
+        self.assertEqual(len(generated_lines), 2)
+        self.assertTrue(any(line.startswith("Ceres,e,") for line in generated_lines))
+        self.assertTrue(
+            any(
+                line.startswith(
+                    "2024 AB,e,8.00000000,89.00000000,121.00000000,1.80000000,"
+                )
+                for line in generated_lines
+            )
+        )
+        self.assertFalse(
+            any("2.00000000,0.12345678,22.50000000" in line for line in generated_lines)
+        )
+
+    def tearDown(self):
+        if self.csv_file is not None and os.path.exists(self.csv_file):
+            os.remove(self.csv_file)
+        self.tmpdir.cleanup()

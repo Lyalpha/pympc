@@ -42,8 +42,9 @@ def _df_to_structured_array(df: pd.DataFrame) -> np.ndarray:
         ]
     )
     arr = np.empty(len(df), dtype=dtype)
-    for field in arr.dtype.names:
-        arr[field] = df[field].to_numpy()
+    if arr.dtype.names is not None:
+        for field in arr.dtype.names:
+            arr[field] = df[field].to_numpy()
     order = np.argsort(arr["obscode"])
     return arr[order]
 
@@ -70,7 +71,11 @@ def _fetch_obscodes() -> np.ndarray:
         df[col] = df[col].fillna("").astype(str)
 
     # Deduplicate by obscode
-    df = df.sort_values("obscode").drop_duplicates(subset="obscode", keep="last").reset_index(drop=True)
+    df = (
+        df.sort_values("obscode")
+        .drop_duplicates(subset="obscode", keep="last")
+        .reset_index(drop=True)
+    )
 
     return _df_to_structured_array(df)
 
@@ -84,7 +89,7 @@ def ensure_obs_codes_cached(update: bool = False) -> str:
     if os.path.exists(cache) and not update:
         return cache
 
-    logger.info("fetching and caching MPC observatory codes")
+    logger.info("Fetching and caching MPC observatory codes")
     obscode_arr = _fetch_obscodes()
 
     fd, tmp_path = tempfile.mkstemp(dir=_cache_dir(), suffix=".npy")
@@ -110,7 +115,7 @@ def _load_obs_codes() -> np.ndarray:
 
 
 def get_observatory_data(
-    observatory: Union[str, int, Tuple[float, float, float]]
+    observatory: Union[str, int, Tuple[float, float, float]],
 ) -> Tuple[float, float, float]:
     """
     Resolve an observatory specification to (longitude [deg], rho_cos_phi, rho_sin_phi).
@@ -123,7 +128,9 @@ def get_observatory_data(
     # Tuple passthrough
     if isinstance(observatory, tuple):
         if len(observatory) != 3:
-            raise ValueError("observatory tuple must be (longitude, rho_cos_phi, rho_sin_phi)")
+            raise ValueError(
+                "observatory tuple must be (longitude, rho_cos_phi, rho_sin_phi)"
+            )
         return float(observatory[0]), float(observatory[1]), float(observatory[2])
 
     if isinstance(observatory, int):
@@ -151,18 +158,30 @@ def get_observatory_data(
         elif (short_sum := np.sum(short_mask)) == 1:
             row = obscode_arr[short_mask][0]
         elif (name_sum + short_sum) > 1:
-            raise ValueError(f"ambiguous observatory name '{observatory}', please use the obscode.")
+            raise ValueError(
+                f"ambiguous observatory name '{observatory}', please use the obscode."
+            )
     if row is not None:
         return float(row["longitude"]), float(row["rhocosphi"]), float(row["rhosinphi"])
-    raise ValueError(f"observatory '{observatory}' not found by code or name.\n"
-                     f"try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
-                     f"cache and fetch the latest data from the MPC.")
+    raise ValueError(
+        f"observatory '{observatory}' not found by code or name.\n"
+        f"try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
+        f"cache and fetch the latest data from the MPC."
+    )
 
 
 def add_logging(level="INFO", sink=sys.stderr):
     """
     Enable logging for the application.
     """
+
     logger.enable("pympc")
     logger.remove()
-    logger.add(sink, level=level)
+    logger.add(sys.stderr if sink is None else sink, level=level)
+
+
+def update_obscode_cache() -> None:
+    """
+    Update the observatory codes cache by re-downloading from the MPC.
+    """
+    ensure_obs_codes_cached(update=True)
