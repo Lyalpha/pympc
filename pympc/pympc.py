@@ -1420,5 +1420,7 @@ def equitorial_geocentric_to_topocentric(
 def _to_astropy_table(results):
     """Convert a list of xephem results to an astropy table"""
     names = ["name", "ra", "dec", "separation", "mag", "xephem_str"]
-    table = Table(rows=results, names=names)
+    # If results is empty list, set to None for compatability with
+    # astropy versions <7.1.0
+    table = Table(rows=results or None, names=names)
     return table
