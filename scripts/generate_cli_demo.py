@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 """
-Generate an SVG screenshot of the pympc CLI for use in README.md.
+Generate SVG terminal captures of pympc CLI output for README/docs.
 
 Run with:
     uv run python scripts/generate_cli_demo.py
-
-The output SVG is written to docs/cli_demo.svg.
 """
 
 import os
@@ -37,7 +35,7 @@ WIDTH = 110
 
 
 def _pympc_cmd(args: list[str]) -> str:
-    """Invoke the pympc entry point directly, forcing ANSI colour output."""
+    """Invoke the pympc entry point directly and return combined CLI output."""
     result = subprocess.run(
         ["uv", "run", "pympc"] + args,
         capture_output=True,
@@ -52,21 +50,23 @@ def _pympc_cmd(args: list[str]) -> str:
     return result.stdout or result.stderr
 
 
-def main() -> None:
+def _render_block(commands: list[list[str]], output_path: Path) -> None:
     console = Console(record=True, width=WIDTH)
 
-    for command, output_path in zip(COMMANDS, OUT_PATHS):
-        for sub_command in command:
-            prompt = Text(f"$ {' '.join(sub_command)}", style="bold green")
-            console.print(prompt)
-            output = _pympc_cmd(sub_command[1:])
-            console.out(output, end="")
-            console.print()
+    for sub_command in commands:
+        console.print(Text(f"$ {' '.join(sub_command)}", style="bold green"))
+        output = _pympc_cmd(sub_command[1:])
+        console.print(Text.from_ansi(output), end="")
+        console.print()
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        svg = console.export_svg(title="pympc CLI")
-        output_path.write_text(svg)
-        print(f"SVG written to {output_path}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(console.export_svg(title="pympc"))
+    print(f"SVG written to {output_path}")
+
+
+def main() -> None:
+    for command_group, output_path in zip(COMMANDS, OUT_PATHS):
+        _render_block(command_group, output_path)
 
 
 if __name__ == "__main__":
