@@ -4,7 +4,6 @@ Benchmark pympc.minor_planet_check with timing across chunk sizes.
 
 Run with:
     uv run python scripts/benchmark.py
-    uv run python scripts/benchmark.py --chunk-sizes 0 5000 20000 100000
 """
 
 import argparse
@@ -45,7 +44,7 @@ def main() -> None:
         "--chunk-sizes",
         nargs="+",
         type=int,
-        default=[0, 1000, 5000, 20000, 100000, 500000],
+        default=[0, 500, 1000, 5000, 20000, 100000],
         metavar="N",
         help="Chunk sizes to benchmark (0 = no multiprocessing)",
     )

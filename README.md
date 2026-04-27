@@ -199,7 +199,7 @@ This object is not in the major body catalogue of `pyephem`, but does provide a 
 ![Minor Jovian Moon demo](docs/assets/jovian_moon_demo.svg)
 
 ## Speed and multiprocessing
-The major body check takes much less than one second. The minor body check should take of order several seconds,
+The major body check takes much less than one second. The minor body check should take of order a few seconds,
 depending on multiprocessing capabilities.
 
 The private function which actually performs the calculation is `pympc.pympc._minor_planet_check()` (note leading underscore).

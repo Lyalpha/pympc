@@ -184,7 +184,6 @@ class TestPyMPC(unittest.TestCase):
             self.ceres_mjd,
             self.ceres_search_radius,
             TEST_MPCORB_XEPHEM,
-            chunk_size=1000,
         )
         self._assert_tables_equal(ceres_result, self.ceres_result_geo)
 
@@ -196,7 +195,6 @@ class TestPyMPC(unittest.TestCase):
             self.ceres_mjd,
             self.ceres_search_radius * 0,
             TEST_MPCORB_XEPHEM,
-            chunk_size=1000,
         )
         self.assertEqual(len(ceres_result), 0)
 
@@ -233,7 +231,6 @@ class TestPyMPC(unittest.TestCase):
             self.ceres_search_radius,
             TEST_MPCORB_XEPHEM,
             max_mag=0,
-            chunk_size=1000,
         )
         self.assertEqual(len(ceres_result), 0)
 

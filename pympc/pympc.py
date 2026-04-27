@@ -382,6 +382,25 @@ def _resolve_xephem_filepath(
     )
 
 
+def _iter_xephem_entries(xephem_filepath):
+    """Yield stripped xephem database lines from disk."""
+    with open(xephem_filepath, "r") as f:
+        for line in f:
+            yield line.strip()
+
+
+def _iter_xephem_chunks(xephem_filepath, chunk_size):
+    """Yield fixed-size chunks of stripped xephem database lines from disk."""
+    chunk = []
+    for line in _iter_xephem_entries(xephem_filepath):
+        chunk.append(line)
+        if len(chunk) >= chunk_size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
+
+
 def update_catalogue(
     include_nea=True,
     include_comets=True,
@@ -795,7 +814,7 @@ def minor_planet_check(
         default returns geometric positions.
     chunk_size : int, optional
         The chunk size for multiprocessing of the search. Avoid setting too low
-        (<<1000) to avoid large setup time costs. Set to 0 to disable multiprocessing.
+        (<1000) to avoid large setup time costs. Set to 0 to disable multiprocessing.
     max_workers : int, optional
         Number of worker processes to use when multiprocessing is enabled
         (i.e. ``chunk_size > 0``). Set to 0 to use all available CPUs. Ignored
@@ -888,7 +907,7 @@ def _minor_planet_check(
     rhosinphi=0.0,
     include_minor_bodies=True,
     include_major_bodies=False,
-    c=1000,
+    c=20000,
     max_workers=4,
     cat_dir=None,
     catalogue_source=DEFAULT_CATALOGUE_SOURCE,
@@ -977,12 +996,9 @@ def _minor_planet_check(
             f"Searching for minor bodies using xephem catalogue at {xephem_filepath}"
         )
 
-        with open(xephem_filepath, "r") as f:
-            xephem_db = [line.strip() for line in f.readlines()]
-
         if c == 0:
             results = _cone_search_xephem_entries(
-                xephem_db,
+                _iter_xephem_entries(xephem_filepath),
                 (ra, dec),
                 date,
                 search_radius,
@@ -994,9 +1010,8 @@ def _minor_planet_check(
                 local_sidereal_time,
             )
         else:
-            xephem_db_chunks = np.array_split(xephem_db, max(len(xephem_db) // c, 1))
             args_iter = (
-                xephem_db_chunks,
+                _iter_xephem_chunks(xephem_filepath, c),
                 repeat((ra, dec)),
                 repeat(date),  # send a picklable string
                 repeat(search_radius),
@@ -1053,8 +1068,8 @@ def _cone_search_xephem_entries(
 
     Parameters
     ----------
-    xephem_db : list
-        A list of xephem db-formatted strings used to cross-match position against.
+    xephem_db : iterable
+        Iterable of xephem db-formatted strings used to cross-match position against.
     coo : tuple
         (ra, dec) coordinates of search position in radians.
     date : emphem.date

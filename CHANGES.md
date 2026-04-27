@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generated xephem catalogues now follow the naming pattern `xephem_{source}_{YYYYMMDD}.csv`, where `{source}` is either `astorb` or `mpcorb`. Multiple catalogues from the same source can be retained in the same directory without overwriting each other. If no catalogue path is provided when minor planet checking, the latest catalogue from the default directory will be used.
 - Project configuration consolidated into `pyproject.toml` (setup.cfg and requirements.txt removed).
 - Sidereal time is now calculated once per call, rather than per topocentric correction.
+- Speed up reading and parsing of xephem CSV file.
 
 - **API changes:**
   - The default base asteroid catalogue is now Lowell Observatory's ASTORB instead of MPCORB.
@@ -24,8 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The command-line interface is now a subcommand-based `pympc` CLI (`pympc check ...`, `pympc update-catalogue ...`).
   - The command-line arguments `--include-comets` and `--include-nea` have been removed and are now the default. Turn them off with `--no-comets` and `--no-nea`, as needed.
   - `minor_planet_check()` and `planet_hill_sphere_check()` now always return an `astropy.table.Table`, even with no matches (in which the table is empty). Previously an empty list was returned for no matches~~~~.
-  - Default `chunk_size` has changed to `1000` from `20000`, which was found to be a more sensible (faster)
-    default.
   - Added `max_workers` argument to `minor_planet_check()` to control the number of parallel workers with a default of `4`.
     Previously, multiprocessing (i.e. `chunk_size > 0`) would use `n_workers = n_cpu`.
 
