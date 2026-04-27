@@ -882,7 +882,7 @@ def _minor_planet_check(
     rhosinphi=0.0,
     include_minor_bodies=True,
     include_major_bodies=False,
-    c=2e4,
+    c=20000,
     cat_dir=None,
     catalogue_source=DEFAULT_CATALOGUE_SOURCE,
 ):
@@ -935,7 +935,8 @@ def _minor_planet_check(
     """
     if max_mag is None:
         max_mag = np.inf
-    if any([longitude, rhocosphi, rhosinphi]):
+    use_topocentric = any((longitude, rhocosphi, rhosinphi))
+    if use_topocentric:
         # If we are using topocentric coordinates, there needs to be a small buffer
         # on searching to ensure the geocentric coordinates returned by xephem contain
         # all matches within the search radius, once topocentric corrections are applied.
@@ -953,10 +954,11 @@ def _minor_planet_check(
     date = ephem.date(str(epoch))
     t0 = time()
     if include_minor_bodies:
-        logger.info("Searching for minor bodies")
         xephem_filepath = _resolve_xephem_filepath(
             xephem_filepath, cat_dir, catalogue_source
         )
+        logger.info(f"Searching for minor bodies using xephem catalogue at {xephem_filepath}")
+
         try:
             with open(xephem_filepath, "r") as f:
                 xephem_db = [line.strip() for line in f.readlines()]
@@ -1058,24 +1060,60 @@ def _cone_search_xephem_entries(
         ((ra [degrees], dec [degrees]), separation in arcseconds, magnitude of body,
         xephem db-formatted string of matched body).
     """
+    use_topocentric = any((longitude, rhocosphi, rhosinphi))
+    search_radius_with_buffer_rad = (search_radius + buffer) * DEGTORAD / 3600.0
+    search_radius_rad = search_radius * DEGTORAD / 3600.0
     results = []
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str)
         mp.compute(date)
-        res = _cone_search(
-            xephem_str,
-            mp,
-            coo,
-            date,
-            search_radius,
-            max_mag,
-            longitude,
-            rhocosphi,
-            rhosinphi,
-            buffer,
+
+        # The _cone_search() functionality is directly embedded here to save the overhead
+        # of calling another function for every single entry in the xephem catalogue.
+
+        if mp.mag > max_mag:
+            continue
+
+        try:
+            separation_rad = ephem.separation((mp.a_ra, mp.a_dec), coo)
+        except RuntimeError as e:
+            warnings.warn(
+                f"Could not calculate separation for body {mp.name}: '{str(e)}'",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            continue
+
+        if separation_rad > search_radius_with_buffer_rad:
+            continue
+
+        ra, dec = float(mp.a_ra), float(mp.a_dec)
+        if use_topocentric:
+            ra, dec = equitorial_geocentric_to_topocentric(
+                mp.a_ra,
+                mp.a_dec,
+                mp.earth_distance,
+                date.datetime(),
+                longitude,
+                rhocosphi,
+                rhosinphi,
+            )
+            separation_rad = float(ephem.separation((ra, dec), coo))
+            if separation_rad > search_radius_rad:
+                continue
+
+        separation_arcsec = 3600.0 * RADTODEG * separation_rad
+
+        results.append(
+            [
+                mp.name,
+                ra * RADTODEG,
+                dec * RADTODEG,
+                separation_arcsec,
+                mp.mag,
+                xephem_str,
+            ]
         )
-        if res is not None:
-            results.append(res)
 
     return results
 
@@ -1319,6 +1357,11 @@ def _cone_search(
     rhosinphi,
     buffer,
 ):
+    if body.mag > max_mag:
+        return None
+    use_topocentric = any((longitude, rhocosphi, rhosinphi))
+    search_radius_with_buffer_rad = (search_radius + buffer) * DEGTORAD / 3600.0
+    search_radius_rad = search_radius * DEGTORAD / 3600.0
     try:
         separation_rad = ephem.separation((body.a_ra, body.a_dec), coo)
     except RuntimeError as e:
@@ -1328,11 +1371,10 @@ def _cone_search(
             stacklevel=2,
         )
         return None
-    separation_arcsec = 3600.0 * RADTODEG * separation_rad
     # First match geocentric positions against the buffered search radius
-    if separation_arcsec <= search_radius + buffer and body.mag <= max_mag:
+    if separation_rad <= search_radius_with_buffer_rad:
         ra, dec = float(body.a_ra), float(body.a_dec)
-        if any([longitude, rhocosphi, rhosinphi]):
+        if use_topocentric:
             # Perform a topocentric correction
             ra, dec = equitorial_geocentric_to_topocentric(
                 body.a_ra,
@@ -1343,13 +1385,12 @@ def _cone_search(
                 rhocosphi,
                 rhosinphi,
             )
-            separation_arcsec = (
-                3600.0 * RADTODEG * (float(ephem.separation((ra, dec), coo)))
-            )
+            separation_rad = float(ephem.separation((ra, dec), coo))
             # Apply the search radius check again, here without the buffer since we now have
             # topocentric coordinates
-            if separation_arcsec > search_radius:
+            if separation_rad > search_radius_rad:
                 return None
+        separation_arcsec = 3600.0 * RADTODEG * separation_rad
         return [
             body.name,
             ra * RADTODEG,
