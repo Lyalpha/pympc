@@ -97,7 +97,9 @@ Installation of the package creates a `pympc` command with the following structu
 
 ![pympc CLI demo](docs/assets/cli_demo.svg)
 
-Use `pympc update-catalogue` first, to fetch catalogues and generate xephem output.
+Use `pympc [subcommand] --help` to get more information on the usage of each subcommand.
+
+The command `pympc update-catalogue` should be run before searching, to fetch catalogues and generate xephem output.
 
 
 ### Interactive searching

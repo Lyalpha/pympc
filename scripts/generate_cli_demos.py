@@ -23,9 +23,6 @@ OUT_PATHS = [
 COMMANDS = (
     [
         ["pympc", "--help"],
-        ["pympc", "update-catalogue", "--help"],
-        ["pympc", "update-obscode-cache", "--help"],
-        ["pympc", "check", "--help"],
     ],
     [
         ["pympc", "check", "all", "69.122371", "21.11505", "60695.428680"],
@@ -33,6 +30,7 @@ COMMANDS = (
     [
         ["pympc", "check", "major", "8.442083", "1.290639", "2026-04-26T12:00:00"],
         ["pympc", "check", "minor", "214.768413", "10.41659", "61157.006230"],
+        ["pympc", "check", "minor", "84.2229166", "21.5972222", "61157.66100"],
     ],
 )
 
