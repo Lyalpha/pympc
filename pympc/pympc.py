@@ -977,11 +977,9 @@ def _minor_planet_check(
             f"Searching for minor bodies using xephem catalogue at {xephem_filepath}"
         )
 
-        try:
-            with open(xephem_filepath, "r") as f:
-                xephem_db = [line.strip() for line in f.readlines()]
-        except FileNotFoundError:
-            raise
+        with open(xephem_filepath, "r") as f:
+            xephem_db = [line.strip() for line in f.readlines()]
+
         if c == 0:
             results = _cone_search_xephem_entries(
                 xephem_db,
