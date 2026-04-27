@@ -248,7 +248,9 @@ def update_obscode_cache_cmd(ctx, verbose):
     type=click.Path(exists=True, dir_okay=False, path_type=str),
     help="Explicit xephem catalogue to search. If omitted, latest source-matched file is used.",
 )
-@click.option("--chunk-size", type=int, default=20000, show_default=True)
+@click.option("--chunk-size", type=int, default=20000, show_default=True,
+              help="Number of catalogue entries to process in each multiprocessing chunk. "
+                   "Set to 0 to disable multiprocessing.")
 @click.option(
     "--catalogue-source",
     type=click.Choice(["astorb", "mpcorb"], case_sensitive=False),
@@ -300,7 +302,7 @@ def check_cmd(
     observatory_parsed = _parse_observatory(observatory)
 
     console = Console()
-    console.print("\n[bold cyan]Search Parameters:[/bold cyan]")
+    console.print("\n[bold magenta]Search Parameters:[/bold magenta]")
     console.print(f"  Position (RA, Dec): ({ra:.6f}°, {dec:.6f}°)")
     console.print(f"  Search Radius: {radius:.2f} arcsec")
     console.print(f"  Epoch: {epoch}")
@@ -309,14 +311,21 @@ def check_cmd(
             f"  Observatory: Custom ({observatory_parsed[0]:.4f}, {observatory_parsed[1]:.6f}, {observatory_parsed[2]:.6f})"
         )
     else:
-        console.print(f"  Observatory: {observatory_parsed}")
+        console.print(f"  Observatory: [bold cyan]{observatory_parsed}[/bold cyan]")
     mode_display = (
         mode.title() if mode != "all" else "All (Minor & Major & Hill Sphere)"
     )
     if mode.lower() != "hillshpere":
-        console.print(f"  Search Mode: {mode_display}")
+        if xephem_filepath:
+            console.print(f"  Catalogue: {xephem_filepath}")
+        else:
+            cat_dir_display = cat_dir or "system temp dir"
+            console.print(
+                f"  Catalogue: latest [bold cyan]{catalogue_source.upper()}[/bold cyan] xephem file in {cat_dir_display}"
+            )
+        console.print(f"  Search Mode: [bold cyan]{mode_display}[/bold cyan]")
         if max_mag is not None:
-            console.print(f"  Max Magnitude: {max_mag}")
+            console.print(f"  Max Magnitude: [bold cyan]{max_mag}[/bold cyan] mag")
     console.print()
 
     mode = mode.lower()
