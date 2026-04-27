@@ -963,6 +963,11 @@ def _minor_planet_check(
         f" {dec:.5f} rad at MJD = {mjd:.5f}"
     )
     date = ephem.date(str(epoch))
+    local_sidereal_time = None
+    if use_topocentric:
+        local_sidereal_time = (
+            Time(date.datetime()).sidereal_time("apparent", longitude=longitude).radian
+        )
     t0 = time()
     if include_minor_bodies:
         xephem_filepath = _resolve_xephem_filepath(
@@ -988,6 +993,7 @@ def _minor_planet_check(
                 rhocosphi,
                 rhosinphi,
                 search_radius_buffer,
+                local_sidereal_time,
             )
         else:
             xephem_db_chunks = np.array_split(xephem_db, max(len(xephem_db) // c, 1))
@@ -1001,6 +1007,7 @@ def _minor_planet_check(
                 repeat(rhocosphi),
                 repeat(rhosinphi),
                 repeat(search_radius_buffer),
+                repeat(local_sidereal_time),
             )
             with ProcessPoolExecutor(max_workers=max_workers or None) as executor:
                 results = list(executor.map(_cone_search_xephem_entries, *args_iter))
@@ -1020,6 +1027,7 @@ def _minor_planet_check(
             rhocosphi,
             rhosinphi,
             search_radius_buffer,
+            local_sidereal_time,
         )
 
     logger.info("Search took {:.1f} seconds".format(time() - t0))
@@ -1040,6 +1048,7 @@ def _cone_search_xephem_entries(
     rhocosphi,
     rhosinphi,
     buffer,
+    local_sidereal_time=None,
 ):
     """
     Performs a cone search for sources.
@@ -1065,6 +1074,9 @@ def _cone_search_xephem_entries(
     buffer: float
         Buffer to add to search radius to ensure all matches are found even after
         topocentric corrections are applied.
+    local_sidereal_time: float, optional
+        Precomputed local apparent sidereal time in radians. If not provided and
+        topocentric corrections are requested, this is computed once per call.
 
     Returns
     -------
@@ -1074,6 +1086,10 @@ def _cone_search_xephem_entries(
         xephem db-formatted string of matched body).
     """
     use_topocentric = any((longitude, rhocosphi, rhosinphi))
+    if use_topocentric and local_sidereal_time is None:
+        local_sidereal_time = (
+            Time(date.datetime()).sidereal_time("apparent", longitude=longitude).radian
+        )
     search_radius_with_buffer_rad = (search_radius + buffer) * DEGTORAD / 3600.0
     search_radius_rad = search_radius * DEGTORAD / 3600.0
     results = []
@@ -1110,6 +1126,7 @@ def _cone_search_xephem_entries(
                 longitude,
                 rhocosphi,
                 rhosinphi,
+                local_sidereal_time,
             )
             separation_rad = float(ephem.separation((ra, dec), coo))
             if separation_rad > search_radius_rad:
@@ -1140,6 +1157,7 @@ def _cone_search_major_bodies(
     rhocosphi,
     rhosinphi,
     buffer,
+    local_sidereal_time=None,
 ):
     """
     Performs a cone search for major bodies (i.e. Planets and moons).
@@ -1163,6 +1181,9 @@ def _cone_search_major_bodies(
     buffer: float
         Buffer to add to search radius to ensure all matches are found even after
         topocentric corrections are applied.
+    local_sidereal_time: float, optional
+        Precomputed local apparent sidereal time in radians used for topocentric
+        correction.
 
     Returns
     -------
@@ -1191,6 +1212,7 @@ def _cone_search_major_bodies(
                 rhocosphi,
                 rhosinphi,
                 buffer,
+                local_sidereal_time,
             )
             if res is not None:
                 results.append(res)
@@ -1205,6 +1227,7 @@ def _cone_search_major_bodies(
             rhocosphi,
             rhosinphi,
             buffer,
+            local_sidereal_time,
         )
         if res is not None:
             results.append(res)
@@ -1369,6 +1392,7 @@ def _cone_search(
     rhocosphi,
     rhosinphi,
     buffer,
+    local_sidereal_time=None,
 ):
     if body.mag > max_mag:
         return None
@@ -1397,6 +1421,7 @@ def _cone_search(
                 longitude,
                 rhocosphi,
                 rhosinphi,
+                local_sidereal_time,
             )
             separation_rad = float(ephem.separation((ra, dec), coo))
             # Apply the search radius check again, here without the buffer since we now have
@@ -1423,6 +1448,7 @@ def equitorial_geocentric_to_topocentric(
     longitude,
     rhocosphi,
     rhosinphi,
+    local_sidereal_time=None,
 ):
     """
     Convert equitorial geocentric coordinates to topocentric coordinates.
@@ -1441,6 +1467,9 @@ def equitorial_geocentric_to_topocentric(
         Parallax constant for cosine of the latitude of the observer.
     rhosinphi:
         Parallax constant for sine of the latitude of the observer.
+    local_sidereal_time: float, optional
+        Precomputed local apparent sidereal time in radians. When omitted, it is
+        computed from ``epoch`` and ``longitude``.
 
     Returns
     -------
@@ -1452,9 +1481,10 @@ def equitorial_geocentric_to_topocentric(
     See https://rdrr.io/github/Susarro/arqastwb/src/R/coordinates.R#sym-geocentric2topocentric
     """
 
-    local_sidereal_time = (
-        Time(epoch).sidereal_time("apparent", longitude=longitude).radian
-    )
+    if local_sidereal_time is None:
+        local_sidereal_time = (
+            Time(epoch).sidereal_time("apparent", longitude=longitude).radian
+        )
     local_hour_angle = local_sidereal_time - ra_geo
 
     parallax = SOLAR_PARALLAX_RAD / dist_au

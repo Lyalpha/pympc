@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command-line checking interface (`pympc check`) now supports custom observatory codes.
 - Generated xephem catalogues now follow the naming pattern `xephem_{source}_{YYYYMMDD}.csv`, where `{source}` is either `astorb` or `mpcorb`. Multiple catalogues from the same source can be retained in the same directory without overwriting each other. If no catalogue path is provided when minor planet checking, the latest catalogue from the default directory will be used.
 - Project configuration consolidated into `pyproject.toml` (setup.cfg and requirements.txt removed).
+- Sidereal time is now calculated once per call, rather than per topocentric correction.
 
 - **API changes:**
   - The default base asteroid catalogue is now Lowell Observatory's ASTORB instead of MPCORB.
