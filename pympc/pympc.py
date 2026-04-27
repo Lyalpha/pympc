@@ -754,7 +754,8 @@ def minor_planet_check(
     include_minor_bodies=True,
     include_major_bodies=True,
     observatory=(0.0, 0.0, 0.0),
-    chunk_size=20000,
+    chunk_size=1000,
+    max_workers=4,
     cat_dir=None,
     catalogue_source=DEFAULT_CATALOGUE_SOURCE,
 ):
@@ -794,7 +795,11 @@ def minor_planet_check(
         default returns geometric positions.
     chunk_size : int, optional
         The chunk size for multiprocessing of the search. Avoid setting too low
-        (<<1e4) to avoid large setup time costs. Set to 0 to disable multiprocessing.
+        (<<1000) to avoid large setup time costs. Set to 0 to disable multiprocessing.
+    max_workers : int, optional
+        Number of worker processes to use when multiprocessing is enabled
+        (i.e. ``chunk_size > 0``). Set to 0 to use all available CPUs. Ignored
+        when ``chunk_size=0``.
     cat_dir : str, optional
         Directory in which to search for the generated xephem catalogue when
         `xephem_filepath` is not explicitly provided.
@@ -864,6 +869,7 @@ def minor_planet_check(
         include_minor_bodies,
         include_major_bodies,
         chunk_size,
+        max_workers,
         cat_dir,
         catalogue_source,
     )
@@ -882,7 +888,8 @@ def _minor_planet_check(
     rhosinphi=0.0,
     include_minor_bodies=True,
     include_major_bodies=False,
-    c=20000,
+    c=1000,
+    max_workers=4,
     cat_dir=None,
     catalogue_source=DEFAULT_CATALOGUE_SOURCE,
 ):
@@ -919,6 +926,10 @@ def _minor_planet_check(
         major moons).
     c : int, optional
         Chunk size when multiprocessing. Set to 0 to disable multiprocessing.
+    max_workers : int, optional
+        Number of worker processes when multiprocessing is enabled (``c > 0``).
+        Set to 0 to use all available CPUs (passed as ``None`` to
+        ``ProcessPoolExecutor``). Ignored when ``c=0``.
     cat_dir : str, optional
         Directory in which to search for the generated xephem catalogue when
         `xephem_filepath` is not explicitly provided.
@@ -957,7 +968,9 @@ def _minor_planet_check(
         xephem_filepath = _resolve_xephem_filepath(
             xephem_filepath, cat_dir, catalogue_source
         )
-        logger.info(f"Searching for minor bodies using xephem catalogue at {xephem_filepath}")
+        logger.info(
+            f"Searching for minor bodies using xephem catalogue at {xephem_filepath}"
+        )
 
         try:
             with open(xephem_filepath, "r") as f:
@@ -989,7 +1002,7 @@ def _minor_planet_check(
                 repeat(rhosinphi),
                 repeat(search_radius_buffer),
             )
-            with ProcessPoolExecutor() as executor:
+            with ProcessPoolExecutor(max_workers=max_workers or None) as executor:
                 results = list(executor.map(_cone_search_xephem_entries, *args_iter))
             # flatten our list of lists
             results = [r for result in results for r in result]

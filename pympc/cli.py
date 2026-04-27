@@ -220,9 +220,17 @@ def update_obscode_cache_cmd(ctx, verbose):
     default="all",
     required=False,
 )
-@click.argument("ra", type=float, help="Right Ascension in decimal degrees (e.g. 69.122371).")
-@click.argument("dec", type=float, help="Declination in decimal degrees (e.g. 21.11505).")
-@click.argument("epoch", type=str, help="Epoch of the position, either as MJD (e.g. 60695.42868) or ISO datetime (e.g. 2019-01-01T00:00:00).")
+@click.argument(
+    "ra", type=float, help="Right Ascension in decimal degrees (e.g. 69.122371)."
+)
+@click.argument(
+    "dec", type=float, help="Declination in decimal degrees (e.g. 21.11505)."
+)
+@click.argument(
+    "epoch",
+    type=str,
+    help="Epoch of the position, either as MJD (e.g. 60695.42868) or ISO datetime (e.g. 2019-01-01T00:00:00).",
+)
 @click.option(
     "-v",
     "--verbose",
@@ -248,9 +256,22 @@ def update_obscode_cache_cmd(ctx, verbose):
     type=click.Path(exists=True, dir_okay=False, path_type=str),
     help="Explicit xephem catalogue to search. If omitted, latest source-matched file is used.",
 )
-@click.option("--chunk-size", type=int, default=20000, show_default=True,
-              help="Number of catalogue entries to process in each multiprocessing chunk. "
-                   "Set to 0 to disable multiprocessing.")
+@click.option(
+    "--chunk-size",
+    type=int,
+    default=1000,
+    show_default=True,
+    help="Number of catalogue entries to process in each multiprocessing chunk. "
+    "Set to 0 to disable multiprocessing.",
+)
+@click.option(
+    "--max-workers",
+    type=int,
+    default=4,
+    show_default=True,
+    help="Number of worker processes for multiprocessing. "
+    "Set to 0 to use all available CPUs. Ignored when --chunk-size=0.",
+)
 @click.option(
     "--catalogue-source",
     type=click.Choice(["astorb", "mpcorb"], case_sensitive=False),
@@ -285,6 +306,7 @@ def check_cmd(
     max_mag,
     xephem_filepath,
     chunk_size,
+    max_workers,
     catalogue_source,
     cat_dir,
     observatory,
@@ -344,6 +366,7 @@ def check_cmd(
             include_major_bodies=include_major,
             observatory=observatory_parsed,
             chunk_size=chunk_size,
+            max_workers=max_workers,
             cat_dir=cat_dir,
             catalogue_source=catalogue_source,
         )

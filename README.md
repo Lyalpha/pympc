@@ -199,11 +199,11 @@ This object is not in the major body catalogue of `pyephem`, but does provide a 
 ![Minor Jovian Moon demo](docs/assets/jovian_moon_demo.svg)
 
 ## Speed and multiprocessing
-The major body check takes much less than one second. The minor body check should take of order a few seconds,
+The major body check takes much less than one second. The minor body check should take of order several seconds,
 depending on multiprocessing capabilities.
 
 The private function which actually performs the calculation is `pympc.pympc._minor_planet_check()` (note leading underscore).
-This can be called directly, to avoid the overhead associated with converting input arguments in `pympc.minor_planet_check()`,
+This can be called directly, to avoid the small overhead associated with converting input arguments in `pympc.minor_planet_check()`,
 if you provide them directly as required (see `pympc.pympc._minor_planet_check()` docstring). Note that in this case a list of
 tuples is returned, rather than an astropy table. Equivalently, `pympc.pympc._planet_hill_sphere_check()` exists.
 

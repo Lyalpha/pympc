@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The command-line interface is now a subcommand-based `pympc` CLI (`pympc check ...`, `pympc update-catalogue ...`).
   - The command-line arguments `--include-comets` and `--include-nea` have been removed and are now the default. Turn them off with `--no-comets` and `--no-nea`, as needed.
   - `minor_planet_check()` and `planet_hill_sphere_check()` now always return an `astropy.table.Table`, even with no matches (in which the table is empty). Previously an empty list was returned for no matches~~~~.
+  - Default `chunk_size` has changed to `1000` from `20000`, which was found to be a more sensible (faster)
+    default.
+  - Added `max_workers` argument to `minor_planet_check()` to control the number of parallel workers with a default of `4`.
+    Previously, multiprocessing (i.e. `chunk_size > 0`) would use `n_workers = n_cpu`.
+
 
 - **Documentation:**
   - Updated README for new ASTORB support and revised examples.
