@@ -13,8 +13,17 @@ import pympc
 from pympc.pympc import generate_xephem_catalogue
 from pympc.utils import get_observatory_data
 
-TEST_MPCORB_XEPHEM = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "resources", "mpcorb_xephem_head.csv"
+FILE_DIR = os.path.dirname(os.path.realpath(__file__))
+TEST_MPCORB_XEPHEM = os.path.join(FILE_DIR, "resources", "mpcorb_xephem_head.csv")
+TEST_MPCORB_XEPHEM_EXPECTED = os.path.join(
+    FILE_DIR,
+    "resources",
+    "mpcorb_xephem_expected.csv",
+)
+TEST_MPCORB_XEPHEM_JSON = os.path.join(
+    FILE_DIR,
+    "resources",
+    "mpcorb_xephem_test.json",
 )
 
 
@@ -186,6 +195,32 @@ class TestPyMPC(unittest.TestCase):
             TEST_MPCORB_XEPHEM,
         )
         self._assert_tables_equal(ceres_result, self.ceres_result_geo)
+
+    def test_iter_xephem_entries(self):
+        with open(TEST_MPCORB_XEPHEM_EXPECTED, "r") as f:
+            expected_lines = [line.strip() for line in f]
+
+        iter_lines = list(pympc.pympc._iter_xephem_entries(TEST_MPCORB_XEPHEM_EXPECTED))
+        self.assertEqual(iter_lines, expected_lines)
+
+    def test_iter_xephem_chunks(self):
+        with open(TEST_MPCORB_XEPHEM_EXPECTED, "r") as f:
+            expected_lines = [line.strip() for line in f]
+
+        for chunk_size, expected_chunk_lengths in ((3, [3, 3, 3, 1]), (4, [4, 4, 2])):
+            with self.subTest(chunk_size=chunk_size):
+                chunks = list(
+                    pympc.pympc._iter_xephem_chunks(
+                        TEST_MPCORB_XEPHEM_EXPECTED, chunk_size
+                    )
+                )
+                self.assertEqual(
+                    [len(chunk) for chunk in chunks], expected_chunk_lengths
+                )
+                self.assertTrue(all(chunk for chunk in chunks))
+                self.assertEqual(
+                    [line for chunk in chunks for line in chunk], expected_lines
+                )
 
     def test_minor_planet_check_searchrad(self):
         # No result should be returned for a search radius of 0
@@ -367,15 +402,9 @@ class TestPyMPC(unittest.TestCase):
 
 class TestGenerateMPCORB(unittest.TestCase):
     def setUp(self):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-
         self.csv_file = None
-        self.json_file = os.path.join(
-            script_dir, "resources", "mpcorb_xephem_test.json"
-        )
-        self.expected_csv_file = os.path.join(
-            script_dir, "resources", "mpcorb_xephem_expected.csv"
-        )
+        self.json_file = TEST_MPCORB_XEPHEM_JSON
+        self.expected_csv_file = TEST_MPCORB_XEPHEM_EXPECTED
 
     def test_generate_mpcorb_xephem(self):
         self.csv_file = generate_xephem_catalogue(
