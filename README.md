@@ -5,6 +5,8 @@ pympc
 
 Perform checks for the presence of moving Solar-system bodies at astronomical locations for a given epoch.
 
+![Matches demo](docs/assets/matches_demo.svg)
+
 ## Installation
 
 Install from PyPI:
