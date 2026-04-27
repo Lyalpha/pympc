@@ -1,4 +1,4 @@
-.PHONY: help lint format type test all check-all build publish demo
+.PHONY: help lint format type test all check-all build publish demo benchmark profile
 
 help:
 	@echo "Usage:"
@@ -8,7 +8,9 @@ help:
 	@echo "  make test               Run unit tests"
 	@echo "  make check-all          Run all checks (lint, format, type, test)"
 	@echo "  make prek               Run prek (=pre-commit) hooks on all files"
-	@echo "  make demo               Regenerate docs/cli_demo.svg for the README"
+	@echo "  make demo               Regenerate docs/assets SVGs for the README"
+	@echo "  make benchmark          Benchmark minor_planet_check across chunk sizes"
+	@echo "  make profile            Profile minor_planet_check with cProfile"
 	@echo "  make build              Build the package wheel"
 	@echo "  make publish            Publish package to PyPI"
 
@@ -30,7 +32,14 @@ prek:
 	uv run prek run --all-files
 
 demo:
-	uv run python scripts/generate_cli_demo.py
+	uv run python scripts/generate_cli_demos.py
+
+benchmark:
+	uv run python scripts/benchmark.py
+
+profile:
+	uv run python -m cProfile -o scripts/prof.out scripts/profile.py
+	uv run python -c "import pstats; p=pstats.Stats('scripts/prof.out'); p.sort_stats('cumtime').print_stats(30)"
 
 build:
 	uv build
