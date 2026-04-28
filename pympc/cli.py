@@ -3,6 +3,8 @@ from numbers import Real
 
 import rich_click as click
 
+from pympc.utils import get_pympc_cache_dir
+
 
 def _verbosity_to_level(verbose_count: int) -> str:
     return {0: "WARNING", 1: "INFO"}.get(min(verbose_count, 2), "DEBUG")
@@ -115,7 +117,12 @@ def cli(ctx, verbose):
     ctx.obj["verbose"] = verbose
 
 
-@cli.command("update-catalogue")
+@cli.group("catalogue")
+def catalogue_cmd():
+    """Catalogue management commands."""
+
+
+@catalogue_cmd.command("update")
 @click.option(
     "-v",
     "--verbose",
@@ -137,12 +144,6 @@ def cli(ctx, verbose):
     help="Whether to include comets in the catalogue.",
 )
 @click.option(
-    "--cleanup/--no-cleanup",
-    default=True,
-    show_default=True,
-    help="Whether to remove intermediate catalogue files before writing the final xephem database.",
-)
-@click.option(
     "--progress/--no-progress",
     "show_progress",
     default=True,
@@ -150,7 +151,7 @@ def cli(ctx, verbose):
     help="Whether to show a progress bar during catalogue update.",
 )
 @click.option(
-    "--catalogue-source",
+    "--source",
     type=click.Choice(["astorb", "mpcorb"], case_sensitive=False),
     default="astorb",
     show_default=True,
@@ -159,7 +160,13 @@ def cli(ctx, verbose):
 @click.option(
     "--cat-dir",
     type=click.Path(file_okay=False, dir_okay=True, path_type=str),
-    help="Directory to store the final database. If not specified, the temporary directory will be used.",
+    help="Directory to store cached catalogues and generated xephem files. If not specified, the OS user cache directory is used.",
+)
+@click.option(
+    "--cleanup/--no-cleanup",
+    default=True,
+    show_default=True,
+    help="Whether to remove intermediate downloaded catalogue files after generating the xephem catalogue.",
 )
 @click.pass_context
 def update_catalogue_cmd(
@@ -167,12 +174,12 @@ def update_catalogue_cmd(
     verbose,
     include_nea,
     include_comets,
-    cleanup,
     show_progress,
-    catalogue_source,
+    source,
     cat_dir,
+    cleanup,
 ):
-    """Download/refresh orbital catalogues and generate an xephem CSV database."""
+    """Download/refresh orbital catalogues and generate an xephem CSV file."""
     from rich.console import Console
 
     from .pympc import update_catalogue
@@ -185,11 +192,11 @@ def update_catalogue_cmd(
         include_nea=include_nea,
         include_comets=include_comets,
         cat_dir=cat_dir,
-        cleanup=cleanup,
-        catalogue_source=catalogue_source,
+        source=source,
         show_progress=show_progress,
+        cleanup=cleanup,
     )
-    Console().print(f"[green]Catalogue generated:[/green] {filepath}")
+    Console().print(f"[green]xephem catalogue generated:[/green] {filepath}")
 
 
 @cli.command("update-obscode-cache")
@@ -201,7 +208,7 @@ def update_catalogue_cmd(
 )
 @click.pass_context
 def update_obscode_cache_cmd(ctx, verbose):
-    """Refresh the locally cached MPC observatory-code database."""
+    """Refresh the locally cached MPC observatory-code cache."""
     from rich.console import Console
 
     from .utils import add_logging, update_obscode_cache
@@ -211,6 +218,73 @@ def update_obscode_cache_cmd(ctx, verbose):
 
     update_obscode_cache()
     Console().print("[green]Observatory-code cache updated.[/green]")
+
+
+@catalogue_cmd.command("status")
+@click.option(
+    "-v",
+    "--verbose",
+    count=True,
+    help="Increase verbosity level of output. Add once for INFO, twice for DEBUG.",
+)
+@click.option(
+    "--source",
+    type=click.Choice(["astorb", "mpcorb"], case_sensitive=False),
+    default="astorb",
+    show_default=True,
+    help="Base source used when reporting xephem file status.",
+)
+@click.option(
+    "--cat-dir",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=str),
+    help="Directory containing cached catalogues and xephem files.",
+)
+@click.pass_context
+def catalogue_status_cmd(ctx, verbose, source, cat_dir):
+    """Show cache/catalogue freshness metadata."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .pympc import get_catalogue_status
+    from .utils import add_logging
+
+    effective_verbose = _effective_verbose(ctx, verbose)
+    add_logging(_verbosity_to_level(effective_verbose))
+
+    status = get_catalogue_status(cat_dir=cat_dir, source=source)
+    console = Console()
+    console.print("[bold]Catalogue Status[/bold]")
+    console.print(f"Cache dir: {status['cache_dir']}")
+    console.print(f"Source: [bold cyan]{status['source']}[/bold cyan]\n")
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("dataset")
+    table.add_column("exists")
+    table.add_column("fetched_at_utc")
+    table.add_column("age_days", justify="right")
+    table.add_column("size_mb", justify="right")
+
+    def _add_row(label, item):
+        if not item:
+            table.add_row(label, "no", "", "", "")
+            return
+        size_mb = ""
+        if item["size_bytes"] is not None:
+            size_mb = f"{item['size_bytes'] / (1024 * 1024):.1f}"
+        age_days = "" if item["age_days"] is None else f"{item['age_days']:.2f}"
+        table.add_row(
+            label,
+            "yes" if item["exists"] else "no",
+            item["fetched_at_utc"].split("+")[0] or "",
+            age_days,
+            size_mb,
+        )
+
+    _add_row("base", status["sources"]["base"])
+    _add_row("nea", status["sources"]["nea"])
+    _add_row("comets", status["sources"]["comets"])
+    _add_row("xephem", status["xephem"])
+    console.print(table)
 
 
 @cli.command("check")
@@ -254,7 +328,8 @@ def update_obscode_cache_cmd(ctx, verbose):
 @click.option(
     "--xephem-filepath",
     type=click.Path(exists=True, dir_okay=False, path_type=str),
-    help="Explicit xephem catalogue to search. If omitted, latest source-matched file is used.",
+    help="Explicit xephem catalogue to search. If omitted, the xephem file "
+    "in the user's cache directory will be used",
 )
 @click.option(
     "--chunk-size",
@@ -273,11 +348,11 @@ def update_obscode_cache_cmd(ctx, verbose):
     "Set to 0 to use all available CPUs. Ignored when --chunk-size=0.",
 )
 @click.option(
-    "--catalogue-source",
+    "--source",
     type=click.Choice(["astorb", "mpcorb"], case_sensitive=False),
     default="astorb",
     show_default=True,
-    help="Base source used when auto-selecting latest xephem file.",
+    help="Base source used to find xephem file.",
 )
 @click.option(
     "--cat-dir",
@@ -307,7 +382,7 @@ def check_cmd(
     xephem_filepath,
     chunk_size,
     max_workers,
-    catalogue_source,
+    source,
     cat_dir,
     observatory,
 ):
@@ -337,13 +412,13 @@ def check_cmd(
     mode_display = (
         mode.title() if mode != "all" else "All (Minor & Major & Hill Sphere)"
     )
-    if mode.lower() != "hillshpere":
+    if mode.lower() != "hillsphere":
         if xephem_filepath:
             console.print(f"  Catalogue: {xephem_filepath}")
         else:
-            cat_dir_display = cat_dir or "system temp dir"
+            cat_dir_display = cat_dir or get_pympc_cache_dir()
             console.print(
-                f"  Catalogue: latest [bold cyan]{catalogue_source.upper()}[/bold cyan] xephem file in {cat_dir_display}"
+                f"  Catalogue: [bold cyan]{source.upper()}[/bold cyan] xephem file in {cat_dir_display}"
             )
         console.print(f"  Search Mode: [bold cyan]{mode_display}[/bold cyan]")
         if max_mag is not None:
@@ -368,7 +443,7 @@ def check_cmd(
             chunk_size=chunk_size,
             max_workers=max_workers,
             cat_dir=cat_dir,
-            catalogue_source=catalogue_source,
+            source=source,
         )
         body_type = "Minor and Major" if mode == "all" else mode.capitalize()
         title = f"{body_type} Body Check Results (radius={radius} arcsec)"

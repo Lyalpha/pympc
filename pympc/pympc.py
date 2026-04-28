@@ -1,4 +1,3 @@
-import glob
 import gzip
 import os
 import shutil
@@ -16,6 +15,7 @@ import ephem
 import erfa
 import numpy as np
 import pandas as pd
+import zstandard as zstd
 from astropy.table import Table
 from astropy.time import Time
 from loguru import logger
@@ -28,13 +28,14 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
-from .utils import get_observatory_data
+from .utils import get_observatory_data, get_pympc_cache_dir
 
 # No logging by default incase being used as a library
 logger.disable("pympc")
 
 __all__ = [
     "update_catalogue",
+    "get_catalogue_status",
     "generate_xephem_catalogue",
     "minor_planet_check",
     "planet_hill_sphere_check",
@@ -87,26 +88,28 @@ MAJOR_BODIES: dict[str, PlanetProperties] = {
 CATALOGUES = {
     "mpcorb": {
         "url": "https://minorplanetcenter.net/Extended_Files/mpcorb_extended.json.gz",
-        "filename": "mpcorb.json",
+        "original_filename": "mpcorb_extended.json.gz",
+        "cached_filename": "mpcorb.json.zst",
     },
     "astorb": {
         "url": "https://ftp.lowell.edu/pub/elgb/astorb.dat.gz",
-        "filename": "astorb.dat",
+        "original_filename": "astorb.dat.gz",
+        "cached_filename": "astorb.dat.zst",
     },
     "nea": {
-        "url": "https://minorplanetcenter.net/Extended_Files/nea_extended.json.gz",
-        "filename": "nea.json",
+        "url": "https://minorplanetcenter.net/Extended_Files/neam00_extended.json.gz",
+        "original_filename": "neam00_extended.json.gz",
+        "cached_filename": "nea.json.zst",
     },
     "comets": {
         "url": "https://www.minorplanetcenter.net/Extended_Files/cometels.json.gz",
-        "filename": "cometels.json",
+        "original_filename": "cometels.json.gz",
+        "cached_filename": "cometels.json.zst",
     },
 }
-DEFAULT_CATALOGUE_SOURCE = "astorb"
-XEPHEM_FILENAME_TEMPLATE = "xephem_{source}_{datestr}.csv"
-LEGACY_MPCORB_XEPHEM = "mpcorb_xephem.csv"
-# keep the old symbol for backward compatibility in internal call sites during migration
-MPCORB_XEPHEM = LEGACY_MPCORB_XEPHEM
+DEFAULT_SOURCE = "astorb"
+XEPHEM_FILENAME_TEMPLATE = "xephem_{source}.csv"
+
 ASTORB_COLUMNS = {
     # https://asteroid.lowell.edu/astorb/
     "Number": (0, 6),
@@ -145,20 +148,83 @@ DEGTORAD = 1 / RADTODEG
 # angle subtended by Earth's equatorial radius at a distance of 1 AU
 SOLAR_PARALLAX_ARCSEC = 8.794143
 SOLAR_PARALLAX_RAD = (SOLAR_PARALLAX_ARCSEC / 3600.0) * DEGTORAD
+ZSTD_LEVEL = 3
 
 
-def _xephem_filename(source, dt=None):
-    """Build the xephem output filename as xephem_{source}_{YYYYMMDD}.csv."""
-    if dt is None:
-        dt = datetime.now(timezone.utc)
-    return XEPHEM_FILENAME_TEMPLATE.format(source=source, datestr=dt.strftime("%Y%m%d"))
+def _catalogue_cache_dir(cat_dir=None):
+    if cat_dir is not None:
+        os.makedirs(cat_dir, exist_ok=True)
+        return cat_dir
+    return get_pympc_cache_dir()
 
 
-def _normalise_catalogue_source(catalogue_source):
-    source = str(catalogue_source).strip().lower()
+def _catalogue_subdirs(cat_dir=None):
+    root = _catalogue_cache_dir(cat_dir)
+    base_dir = os.path.join(root, "base")
+    overlay_dir = os.path.join(root, "overlay")
+    xephem_dir = os.path.join(root, "xephem")
+    os.makedirs(base_dir, exist_ok=True)
+    os.makedirs(overlay_dir, exist_ok=True)
+    os.makedirs(xephem_dir, exist_ok=True)
+    return root, base_dir, overlay_dir, xephem_dir
+
+
+def _file_status(filepath):
+    status = {
+        "path": filepath,
+        "exists": os.path.exists(filepath),
+        "fetched_at_utc": None,
+        "age_days": None,
+        "size_bytes": None,
+    }
+    if status["exists"]:
+        mtime = datetime.fromtimestamp(os.path.getmtime(filepath), tz=timezone.utc)
+        status["fetched_at_utc"] = mtime.isoformat(sep=" ", timespec="seconds")
+        status["age_days"] = round(
+            (datetime.now(timezone.utc) - mtime).total_seconds() / 86400.0, 3
+        )
+        status["size_bytes"] = os.path.getsize(filepath)
+    return status
+
+
+def get_catalogue_status(cat_dir=None, source=DEFAULT_SOURCE):
+    """Return cache/catalogue freshness metadata for programmatic inspection."""
+    source = _normalise_source(source)
+    cache_dir, base_dir, overlay_dir, xephem_dir = _catalogue_subdirs(cat_dir)
+
+    source_files = {
+        "base": _file_status(
+            os.path.join(base_dir, CATALOGUES[source]["cached_filename"])
+        ),
+        "nea": _file_status(
+            os.path.join(overlay_dir, CATALOGUES["nea"]["cached_filename"])
+        ),
+        "comets": _file_status(
+            os.path.join(overlay_dir, CATALOGUES["comets"]["cached_filename"])
+        ),
+    }
+    xephem_file = _file_status(
+        os.path.join(xephem_dir, XEPHEM_FILENAME_TEMPLATE.format(source=source))
+    )
+
+    return {
+        "cache_dir": cache_dir,
+        "source": source,
+        "sources": source_files,
+        "xephem": xephem_file,
+    }
+
+
+def _xephem_filename(source):
+    """Build the xephem output filename as xephem_{source}.csv."""
+    return XEPHEM_FILENAME_TEMPLATE.format(source=source)
+
+
+def _normalise_source(source):
+    source = str(source).strip().lower()
     if source not in ("mpcorb", "astorb"):
         raise ValueError(
-            f"unsupported catalogue_source '{catalogue_source}'. Expected one of: 'mpcorb', 'astorb'."
+            f"unsupported source '{source}'. Expected one of: 'mpcorb', 'astorb'."
         )
     return source
 
@@ -265,7 +331,7 @@ def _read_astorb_catalogue(astorb_filepath):
     Parameters
     ----------
     astorb_filepath : str
-        Path to the decompressed ``astorb.dat`` file.
+        Path to the ASTORB catalogue file (compressed or uncompressed).
 
     Returns
     -------
@@ -290,6 +356,7 @@ def _read_astorb_catalogue(astorb_filepath):
         colspecs=list(ASTORB_COLUMNS.values()),
         names=list(ASTORB_COLUMNS.keys()),
         dtype=str,
+        compression="infer",
     )
     for column in ("Number", "Name"):
         df[column] = df[column].fillna("").astype(str).str.strip()
@@ -339,7 +406,7 @@ def _read_mpcorb_catalogue(mpcorb_filepath):
     Parameters
     ----------
     mpcorb_filepath : str
-        Path to the decompressed ``mpcorb_extended.json`` file.
+        Path to the MPCORB JSON file (compressed or uncompressed).
 
     Returns
     -------
@@ -349,7 +416,7 @@ def _read_mpcorb_catalogue(mpcorb_filepath):
         for applying defaults (see ``generate_xephem_catalogue``).
     """
     logger.info("Reading {}".format(mpcorb_filepath))
-    df = pd.read_json(mpcorb_filepath)
+    df = pd.read_json(mpcorb_filepath, compression="infer")
     if "Number" not in df.columns:
         df["Number"] = ""
     if "Principal_desig" not in df.columns:
@@ -363,22 +430,18 @@ def _read_base_catalogue(base_filepath, source):
     return _read_mpcorb_catalogue(base_filepath)
 
 
-def _resolve_xephem_filepath(
-    xephem_filepath=None, cat_dir=None, catalogue_source=DEFAULT_CATALOGUE_SOURCE
-):
+def _resolve_xephem_filepath(xephem_filepath=None, cat_dir=None, source=DEFAULT_SOURCE):
     if xephem_filepath is not None:
         return xephem_filepath
-    source = _normalise_catalogue_source(catalogue_source)
-    xephem_dir = cat_dir or tempfile.gettempdir()
-    pattern = os.path.join(
-        xephem_dir, XEPHEM_FILENAME_TEMPLATE.format(source=source, datestr="*")
-    )
-    matches = sorted(glob.glob(pattern))
-    if matches:
-        return matches[-1]
+    source = _normalise_source(source)
+    _, _, _, xephem_dir = _catalogue_subdirs(cat_dir)
+    filepath = os.path.join(xephem_dir, XEPHEM_FILENAME_TEMPLATE.format(source=source))
+    if os.path.exists(filepath):
+        return filepath
     raise FileNotFoundError(
         f"xephem CSV file not found for source '{source}' in {xephem_dir}.\n"
-        "Run `pympc.update_catalogue()`, or `pympc update-catalogue` from the command line, if necessary."
+        f"Run `pympc.update_catalogue(source='{source}')`, or `pympc catalogue update --source {source}` "
+        "from the command line, if necessary."
     )
 
 
@@ -405,9 +468,9 @@ def update_catalogue(
     include_nea=True,
     include_comets=True,
     cat_dir=None,
-    cleanup=True,
-    catalogue_source=DEFAULT_CATALOGUE_SOURCE,
+    source=DEFAULT_SOURCE,
     show_progress=True,
+    cleanup=False,
 ):
     """
     Download asteroid/comet orbit elements and save as CSV file readable by xephem.
@@ -424,88 +487,90 @@ def update_catalogue(
         See `include_nea`, but for the comet catalogue.
     cat_dir : str, optional
         The directory in which to store downloaded catalogues and the
-        formatted xephem databases. If `None` will default to the user's
-        tmp directory.
-    cleanup : boolean, optional
-        If `True` will remove the downloaded catalogues after they are
-        processed into the xephem CSV file.
-    catalogue_source : str, optional
+        formatted xephem CSV file. If `None` defaults to the OS's user
+        cache directory for pympc. Subdirectories `base/`, `overlay/` and `xephem/`
+        will be created within this directory to store the base catalogue, overlay
+        catalogues and final xephem CSV respectively.
+    source : str, optional
         Base asteroid catalogue to use. Allowed values are 'astorb' and
         'mpcorb'.
     show_progress : boolean, optional
         Whether to show progress bars during catalogue download(s).
+    cleanup : boolean, optional
+        Whether to remove intermediate (json) catalogue files.
     """
 
-    source = _normalise_catalogue_source(catalogue_source)
+    source = _normalise_source(source)
+    _, base_dir, overlay_dir, xephem_dir = _catalogue_subdirs(cat_dir)
 
-    def download_cat(url, filename):
-        gz_fd, gz_path = tempfile.mkstemp(suffix=".gz", dir=cat_dir)
-        os.close(gz_fd)
-        final_fd, temp_filepath = tempfile.mkstemp(
-            suffix=os.path.splitext(filename)[1], dir=cat_dir
-        )
-        os.close(final_fd)
+    def download_cat(url, original_filename, cached_filename, target_dir):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            gz_path = os.path.join(tmp_dir, original_filename)
 
-        try:
-            logger.info(f"Downloading {filename} from {url}")
-            response = urllib.request.urlopen(url)
-            total = response.getheader("Content-Length")
-            try:
-                total = int(total) if total is not None else 0
-            except (TypeError, ValueError):
-                total = 0
-
-            chunk_size = 16 * 1024
-
-            def _write_stream(out_f, on_chunk=None):
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    out_f.write(chunk)
-                    if on_chunk is not None:
-                        on_chunk(len(chunk))
-
-            if show_progress:
-                _progress_cols = [
-                    TextColumn("[bold blue]{task.description}"),
-                    BarColumn(bar_width=None),
-                    "[progress.percentage]{task.percentage:>3.0f}%",
-                    DownloadColumn(),
-                    TransferSpeedColumn(),
-                    TimeRemainingColumn(),
-                ]
-                with Progress(*_progress_cols, transient=False) as progress:
-                    task = progress.add_task(
-                        filename, total=total if total > 0 else None
-                    )
-                    with open(gz_path, "wb") as gz_f:
-                        _write_stream(
-                            gz_f, on_chunk=lambda n: progress.advance(task, n)
-                        )
-            else:
-                with open(gz_path, "wb") as gz_f:
-                    _write_stream(gz_f)
-
-            logger.info(f"Saved {filename} to temporary gz {gz_path}")
-
-            # decompress gz into the temp filepath
-            logger.info(f"Decompressing {filename}")
-            with gzip.open(gz_path, "rb") as gz_f, open(temp_filepath, "wb") as out_f:
-                shutil.copyfileobj(gz_f, out_f)
-
-            filepath = os.path.join(os.path.dirname(temp_filepath), filename)
-            shutil.move(temp_filepath, filepath)
-            logger.info(f"Saved to {filepath}")
-            return filepath
-        except Exception:
-            for p in (gz_path, temp_filepath):
+            logger.info(f"Downloading {original_filename} from {url}")
+            with urllib.request.urlopen(url) as response:
+                total = response.getheader("Content-Length")
                 try:
-                    if os.path.exists(p):
-                        os.remove(p)
-                except OSError:
-                    pass
-            raise
+                    total = int(total) if total is not None else 0
+                except (TypeError, ValueError):
+                    total = 0
+
+                chunk_size = 16 * 1024
+
+                def _write_stream(out_f, on_chunk=None):
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        out_f.write(chunk)
+                        if on_chunk is not None:
+                            on_chunk(len(chunk))
+
+                if show_progress:
+                    _progress_cols = [
+                        TextColumn("[bold blue]{task.description}"),
+                        BarColumn(bar_width=None),
+                        "[progress.percentage]{task.percentage:>3.0f}%",
+                        DownloadColumn(),
+                        TransferSpeedColumn(),
+                        TimeRemainingColumn(),
+                    ]
+                    with Progress(*_progress_cols, transient=False) as progress:
+                        task = progress.add_task(
+                            original_filename, total=total if total > 0 else None
+                        )
+                        with open(gz_path, "wb") as gz_f:
+                            _write_stream(
+                                gz_f, on_chunk=lambda n: progress.advance(task, n)
+                            )
+                else:
+                    with open(gz_path, "wb") as gz_f:
+                        _write_stream(gz_f)
+
+            logger.info(
+                f"Saved compressed download for {original_filename} to temporary file"
+            )
+            if cleanup:
+                downloaded_path = gz_path
+                final_path = os.path.join(target_dir, original_filename)
+
+            else:
+                # We are keeping the json files, so recompress them into internal .zst cache format.
+                logger.info(
+                    f"Recompressing {original_filename} as {cached_filename} using zstd"
+                )
+                zst_path = os.path.join(tmp_dir, cached_filename)
+                compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL)
+                with gzip.open(gz_path, "rb") as gz_f, open(zst_path, "wb") as out_f:
+                    with compressor.stream_writer(out_f) as zstd_f:
+                        shutil.copyfileobj(gz_f, zstd_f)
+                downloaded_path = zst_path
+                final_path = os.path.join(target_dir, cached_filename)
+
+            # Atomic move into the cache.
+            shutil.move(downloaded_path, str(final_path))
+            logger.info(f"Moved temporary file {downloaded_path} to {final_path}")
+        return final_path
 
     cats_to_process: list[tuple[str, int]] = [(source, 0)]
     for include, additional_cat in [
@@ -515,13 +580,17 @@ def update_catalogue(
         if include:
             cats_to_process.append(additional_cat)
 
-    cat_filepaths = [None, None, None]
+    cat_filepaths = ["", "", ""]
     for cat_name, idx in cats_to_process:
         logger.info("Processing {} catalogue".format(cat_name))
         catalogue = CATALOGUES[cat_name]
-        cat_filename = catalogue["filename"]
         cat_url = catalogue["url"]
-        cat_filepath = download_cat(cat_url, cat_filename)
+        cat_original_filename = catalogue["original_filename"]
+        cat_cached_filename = catalogue["cached_filename"]
+        target_dir = base_dir if cat_name in ("mpcorb", "astorb") else overlay_dir
+        cat_filepath = download_cat(
+            cat_url, cat_original_filename, cat_cached_filename, target_dir
+        )
 
         cat_filepaths[idx] = cat_filepath
 
@@ -532,13 +601,22 @@ def update_catalogue(
             base_filepath=cat_filepaths[0],
             nea_filepath=cat_filepaths[1],
             comet_filepath=cat_filepaths[2],
-            catalogue_source=source,
+            source=source,
+            xephem_dir=xephem_dir,
         )
+
     if cleanup:
-        for cat_filepath in cat_filepaths:
-            if cat_filepath is not None:
-                logger.info(f"Removing {cat_filepath}")
-                os.remove(cat_filepath)
+        for filepath in cat_filepaths:
+            if filepath:
+                try:
+                    os.remove(filepath)
+                except OSError as e:
+                    logger.warning(
+                        f"Failed to remove intermediate catalogue file {filepath}: {e}"
+                    )
+                else:
+                    logger.info(f"Removed intermediate catalogue file {filepath}")
+
     return xephem_csv_filepath
 
 
@@ -546,14 +624,15 @@ def generate_xephem_catalogue(
     base_filepath,
     nea_filepath=None,
     comet_filepath=None,
-    catalogue_source=DEFAULT_CATALOGUE_SOURCE,
+    source=DEFAULT_SOURCE,
+    xephem_dir=None,
 ):
-    source = _normalise_catalogue_source(catalogue_source)
+    source = _normalise_source(source)
     base_df = _read_base_catalogue(base_filepath, source)
 
     if comet_filepath:
         logger.info("Reading {}".format(comet_filepath))
-        comet_df = pd.read_json(comet_filepath)
+        comet_df = pd.read_json(comet_filepath, compression="infer")
         logger.info("Updating orbits for comet objects")
         # for comets, we need to update column names and calculate a few
         # remove non-standard orbits
@@ -600,7 +679,7 @@ def generate_xephem_catalogue(
 
     if nea_filepath:
         logger.info("Reading {}".format(nea_filepath))
-        nea_df = pd.read_json(nea_filepath)
+        nea_df = pd.read_json(nea_filepath, compression="infer")
         logger.info("Updating orbits for nea objects")
         base_df = _overlay_orbit_updates(base_df, nea_df)
 
@@ -752,14 +831,16 @@ def generate_xephem_catalogue(
         xephem_p.loc[:, "PeriEpoch"] = Time(xephem_p.PeriEpoch, format="jd").decimalyear
 
     logger.info("Writing xephem CSV file")
-    xephem_csv_path = os.path.join(
-        os.path.dirname(base_filepath), _xephem_filename(source)
-    )
+    if xephem_dir is None:
+        xephem_dir = os.path.dirname(base_filepath)
+    os.makedirs(xephem_dir, exist_ok=True)
+    xephem_csv_path = os.path.join(xephem_dir, _xephem_filename(source))
     for xephem_db, mode in zip((xephem_e, xephem_h, xephem_p), ("w", "a", "a")):
         xephem_db.to_csv(
             xephem_csv_path, header=False, index=False, float_format="%.8f", mode=mode
         )
     logger.info("xephem CSV file saved to {}".format(xephem_csv_path))
+
     return xephem_csv_path
 
 
@@ -776,7 +857,7 @@ def minor_planet_check(
     chunk_size=1000,
     max_workers=4,
     cat_dir=None,
-    catalogue_source=DEFAULT_CATALOGUE_SOURCE,
+    source=DEFAULT_SOURCE,
 ):
     """
     Perform a minor planet check around a search position
@@ -798,7 +879,7 @@ def minor_planet_check(
     xephem_filepath : str, optional
         The xephem CSV file to use for calculating minor body positions. If None,
         defaults to searching for the latest dated xephem catalogue for the
-        requested `catalogue_source` in `cat_dir` or the system tempdir.
+        requested `source` in `cat_dir` or the pympc cache dir.
     max_mag : float, optional
         Maximum magnitude of minor planet matches to return.
     include_minor_bodies : boolean, optional
@@ -820,9 +901,11 @@ def minor_planet_check(
         (i.e. ``chunk_size > 0``). Set to 0 to use all available CPUs. Ignored
         when ``chunk_size=0``.
     cat_dir : str, optional
-        Directory in which to search for the generated xephem catalogue when
-        `xephem_filepath` is not explicitly provided.
-    catalogue_source : str, optional
+        Directory in which to locate the generated xephem catalogue when
+        `xephem_filepath` is not explicitly provided. The file should be located in a
+        `xephem` subdirectory of `cat_dir`. If `None`, defaults to the
+        OS's user cache directory for pympc.
+    source : str, optional
         Base catalogue source whose generated xephem catalogue should be used
         when `xephem_filepath` is not explicitly provided.
 
@@ -890,7 +973,7 @@ def minor_planet_check(
         chunk_size,
         max_workers,
         cat_dir,
-        catalogue_source,
+        source,
     )
     return _to_astropy_table(results)
 
@@ -910,7 +993,7 @@ def _minor_planet_check(
     c=20000,
     max_workers=4,
     cat_dir=None,
-    catalogue_source=DEFAULT_CATALOGUE_SOURCE,
+    source=DEFAULT_SOURCE,
 ):
     """
     Runs a minor planet check with strict format of arguments
@@ -927,8 +1010,8 @@ def _minor_planet_check(
         Search radius in arcseconds
     xephem_filepath : str, optional
         The xephem CSV file to use for calculating minor body positions. If None,
-        defaults to searching for the latest dated xephem catalogue for the
-        requested `catalogue_source` in `cat_dir` or the system tempdir.
+        defaults to searching for the xephem catalogue for the requested `source`
+        in `cat_dir`.
     max_mag : float, optional
         Maximum magnitude of minor planet matches to return.
     longitude: float
@@ -950,9 +1033,11 @@ def _minor_planet_check(
         Set to 0 to use all available CPUs (passed as ``None`` to
         ``ProcessPoolExecutor``). Ignored when ``c=0``.
     cat_dir : str, optional
-        Directory in which to search for the generated xephem catalogue when
-        `xephem_filepath` is not explicitly provided.
-    catalogue_source : str, optional
+        Directory in which to locate the generated xephem catalogue when
+        `xephem_filepath` is not explicitly provided. The file should be located in a
+        `xephem` subdirectory of `cat_dir`. If `None`, defaults to the
+        OS's user cache directory for pympc.
+    source : str, optional
         Base catalogue source whose generated xephem catalogue should be used
         when `xephem_filepath` is not explicitly provided.
 
@@ -989,9 +1074,7 @@ def _minor_planet_check(
         )
     t0 = time()
     if include_minor_bodies:
-        xephem_filepath = _resolve_xephem_filepath(
-            xephem_filepath, cat_dir, catalogue_source
-        )
+        xephem_filepath = _resolve_xephem_filepath(xephem_filepath, cat_dir, source)
         logger.info(
             f"Searching for minor bodies using xephem catalogue at {xephem_filepath}"
         )

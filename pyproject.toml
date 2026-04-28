@@ -30,6 +30,8 @@ dependencies = [
     "rich>=14.0.0",
     "rich-click>=1.8.9",
     "loguru>=0.7.0",
+    "platformdirs>=4.0.0",
+    "zstandard>=0.25.0",
 ]
 
 [dependency-groups]

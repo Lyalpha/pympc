@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
+from platformdirs import user_cache_dir
 
 # No logging by default incase being used as a library
 logger.disable("pympc")
@@ -14,20 +15,8 @@ logger.disable("pympc")
 MPC_OBSCODES_URL = "https://data.minorplanetcenter.net/api/obscodes"
 
 
-def _cache_dir() -> str:
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser(r"~\AppData\Local")
-    elif sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Caches")
-    else:
-        base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
-    path = os.path.join(base, "pympc")
-    os.makedirs(path, exist_ok=True)
-    return path
-
-
-def _cache_path() -> str:
-    return os.path.join(_cache_dir(), "obs_codes.npy")
+def get_pympc_cache_dir() -> str:
+    return user_cache_dir(appname="pympc", ensure_exists=True)
 
 
 def _df_to_structured_array(df: pd.DataFrame) -> np.ndarray:
@@ -111,25 +100,26 @@ def ensure_obs_codes_cached(update: bool = False) -> str:
     update_obscode_cache : Convenience wrapper that discards the return value.
     get_observatory_data : Uses the cache to resolve a code or name to coordinates.
     """
-    cache = _cache_path()
-    if os.path.exists(cache) and not update:
-        return cache
+    obscodes_cache = os.path.join(get_pympc_cache_dir(), "obs_codes.npy")
+    if os.path.exists(obscodes_cache) and not update:
+        return obscodes_cache
 
     logger.info("Fetching and caching MPC observatory codes")
     obscode_arr = _fetch_obscodes()
 
-    fd, tmp_path = tempfile.mkstemp(dir=_cache_dir(), suffix=".npy")
+    fd, tmp_path = tempfile.mkstemp(suffix=".npy")
     os.close(fd)
     try:
         np.save(tmp_path, obscode_arr, allow_pickle=False)
-        os.replace(tmp_path, cache)
-    finally:
+        os.replace(tmp_path, obscodes_cache)
+    except BaseException:
         try:
             os.remove(tmp_path)
-        except (FileNotFoundError, PermissionError, OSError):
+        except OSError:
             pass
-        logger.info(f"Saved obscodes cache to {cache}")
-        return cache
+        raise
+    logger.info(f"Saved obscodes cache to {obscodes_cache}")
+    return obscodes_cache
 
 
 def _load_obs_codes() -> np.ndarray:

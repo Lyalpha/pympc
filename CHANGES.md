@@ -6,15 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.dev0]
 
-- **Minimum Python version raised to 3.9+** (from 3.8).
+**Minimum Python version requirement is 3.9.**
+
+
 - Added support for the [`ASTORB`](https://asteroid.lowell.edu/astorb/) catalogue as the default base asteroid source. The `catalogue_source` argument to `update_catalogue()` allows selection between `astorb` or `mpcorb`.
   - ASTORB choice does not preclude overlaying comets and NEA bodies, which are still fetched from the MPC.
 - Added `show_progress` parameter to `update_catalogue()` to control display of download progress bars (useful for notebook environments).
   - Also added `--no-progress` command-line flag to `pympc update-catalogue` to disable download progress bars.
-- Added `pympc update-obscode-cache` command to refresh the locally cached MPC observatory-code database.
+- Added `pympc update-obscode-cache` command to refresh the locally cached MPC observatory-code cache.
 - Added `pympc update-catalogue` command-line interface to generate xephem catalogues from the command line.
 - Command-line checking interface (`pympc check`) now supports custom observatory codes.
-- Generated xephem catalogues now follow the naming pattern `xephem_{source}_{YYYYMMDD}.csv`, where `{source}` is either `astorb` or `mpcorb`. Multiple catalogues from the same source can be retained in the same directory without overwriting each other. If no catalogue path is provided when minor planet checking, the latest catalogue from the default directory will be used.
+- Generated xephem catalogues now follow the naming pattern `xephem_{source}.csv`, where `{source}` is `astorb|mpcorb`.
 - Project configuration consolidated into `pyproject.toml` (setup.cfg and requirements.txt removed).
 - Sidereal time is now calculated once per call, rather than per topocentric correction.
 - Speed up reading and parsing of xephem CSV file.
@@ -27,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `minor_planet_check()` and `planet_hill_sphere_check()` now always return an `astropy.table.Table`, even with no matches (in which the table is empty). Previously an empty list was returned for no matches~~~~.
   - Added `max_workers` argument to `minor_planet_check()` to control the number of parallel workers with a default of `4`.
     Previously, multiprocessing (i.e. `chunk_size > 0`) would use `n_workers = n_cpu`.
+  - The default location (`cat_dir`) for storing xephem CSV files is now the user's OS-specific cache directory (e.g. `~/.cache/pympc` on Linux).
+    - The xephem csv file(s) is/are now stored in an `xephem` subdirectory of `cat_dir`
 
 
 - **Documentation:**

@@ -135,7 +135,7 @@ observatory = 950  # equivalently pass as "950" or "La Palma" or (342.1176 0.877
 pympc.minor_planet_check(ra, dec, epoch, search_radius, observatory=observatory)
 ```
 
-By default, the search will use the latest dated xephem catalogue matching the requested `catalogue_source`.
+By default, the search will use an existing xephem catalogue matching the requested `catalogue_source` in the `pympc` cache directory.
 If the file has been moved - or a custom `cat_dir` was passed to `pympc.update_catalogue()` - then the filepath can be specified.
 
 ```python
@@ -245,7 +245,7 @@ the topocentric position is within it - unless the object is within ~1/3 AU of E
 artifically inflate your search radius and filter yourself afterwards.
 
 * The filtering of matches based on magnitude via `max_mag` argument to `minor_planet_check()` is limited by the
-accuracy of the magnitude information in the database so some buffer should be applied to the desired magnitude cutoff
+accuracy of the magnitude information in the source catalogues so some buffer should be applied to the desired magnitude cutoff
 to allow for this.
 
 ### Acknowledgements

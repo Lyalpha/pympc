@@ -24,7 +24,7 @@ type:
 	uv run ty check pympc scripts test
 
 test:
-	uv run python -m unittest -v
+	uv run python -m pytest -v
 
 check-all: lint format type test
 

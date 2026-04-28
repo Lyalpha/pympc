@@ -1,8 +1,11 @@
 # scripts/
 
 Developer and maintenance scripts for `pympc`. None of these are part of the
-installed package — they are run directly from the repo root, typically via 
-`make` commands (see `Makefile`). Further details are provided below.
+installed package — they are run directly from the repo root, typically via
+`make` commands (see `Makefile`).
+
+They typically require the `pympc catalogue update` has been run prior to
+invoking them, so that the xephem database has been created.
 
 ---
 
@@ -82,4 +85,3 @@ uv run python scripts/generate_cli_demos.py
 # or
 make demo
 ```
-

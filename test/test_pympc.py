@@ -10,7 +10,11 @@ from astropy.table import Table
 from astropy.time import Time
 
 import pympc
-from pympc.pympc import generate_xephem_catalogue
+from pympc.pympc import (
+    generate_xephem_catalogue,
+    get_catalogue_status,
+    XEPHEM_FILENAME_TEMPLATE,
+)
 from pympc.utils import get_observatory_data
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -409,7 +413,7 @@ class TestGenerateMPCORB(unittest.TestCase):
     def test_generate_mpcorb_xephem(self):
         self.csv_file = generate_xephem_catalogue(
             base_filepath=self.json_file,
-            catalogue_source="mpcorb",
+            source="mpcorb",
         )
 
         self.assertTrue(os.path.exists(self.csv_file))
@@ -507,7 +511,7 @@ class TestGenerateASTORB(unittest.TestCase):
     def test_generate_xephem_catalogue_astorb(self):
         self.csv_file = generate_xephem_catalogue(
             base_filepath=self.astorb_file,
-            catalogue_source="astorb",
+            source="astorb",
         )
         self.assertTrue(os.path.exists(self.csv_file))
         with open(self.csv_file, "r") as f:
@@ -525,7 +529,7 @@ class TestGenerateASTORB(unittest.TestCase):
         self.csv_file = generate_xephem_catalogue(
             base_filepath=self.astorb_file,
             nea_filepath=self.nea_file,
-            catalogue_source="astorb",
+            source="astorb",
         )
         with open(self.csv_file, "r") as f:
             generated_lines = [line.strip() for line in f if line.strip()]
@@ -548,3 +552,36 @@ class TestGenerateASTORB(unittest.TestCase):
         if self.csv_file is not None and os.path.exists(self.csv_file):
             os.remove(self.csv_file)
         self.tmpdir.cleanup()
+
+
+class TestCatalogueStatus(unittest.TestCase):
+    def test_get_catalogue_status(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = os.path.join(tmpdir, "base")
+            overlay_dir = os.path.join(tmpdir, "overlay")
+            xephem_dir = os.path.join(tmpdir, "xephem")
+            os.makedirs(base_dir, exist_ok=True)
+            os.makedirs(overlay_dir, exist_ok=True)
+            os.makedirs(xephem_dir, exist_ok=True)
+
+            source = "astorb"
+            base_file = os.path.join(base_dir, "astorb.dat.zst")
+            nea_file = os.path.join(overlay_dir, "nea.json.zst")
+            comets_file = os.path.join(overlay_dir, "cometels.json.zst")
+            xephem_file = os.path.join(
+                xephem_dir, XEPHEM_FILENAME_TEMPLATE.format(source=source)
+            )
+
+            for path in (base_file, nea_file, comets_file, xephem_file):
+                with open(path, "w") as f:
+                    f.write("test")
+
+            status = get_catalogue_status(cat_dir=tmpdir, source=source)
+
+            self.assertEqual(status["cache_dir"], tmpdir)
+            self.assertEqual(status["source"], source)
+            self.assertTrue(status["sources"]["base"]["exists"])
+            self.assertTrue(status["sources"]["nea"]["exists"])
+            self.assertTrue(status["sources"]["comets"]["exists"])
+            self.assertTrue(status["xephem"]["exists"])
+            self.assertEqual(status["xephem"]["path"], xephem_file)

@@ -1,6 +1,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .pympc import (
+    get_catalogue_status,
     generate_xephem_catalogue,
     minor_planet_check,
     planet_hill_sphere_check,
@@ -15,6 +16,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "generate_xephem_catalogue",
+    "get_catalogue_status",
     "minor_planet_check",
     "update_catalogue",
     "planet_hill_sphere_check",
