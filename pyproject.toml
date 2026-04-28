@@ -35,6 +35,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "prek",
+    "pytest>=8.4.2",
     "ruff",
     "twine",
     "ty",
