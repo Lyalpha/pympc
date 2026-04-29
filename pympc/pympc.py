@@ -221,10 +221,12 @@ def _xephem_filename(source):
 
 
 def _normalise_source(source):
+    if source is None:
+        return "none"
     source = str(source).strip().lower()
-    if source not in ("mpcorb", "astorb"):
+    if source not in ("mpcorb", "astorb", "none"):
         raise ValueError(
-            f"unsupported source '{source}'. Expected one of: 'mpcorb', 'astorb'."
+            f"unsupported source '{source}'. Expected one of: 'mpcorb', 'astorb' or 'none'."
         )
     return source
 
@@ -427,7 +429,9 @@ def _read_mpcorb_catalogue(mpcorb_filepath):
 def _read_base_catalogue(base_filepath, source):
     if source == "astorb":
         return _read_astorb_catalogue(base_filepath)
-    return _read_mpcorb_catalogue(base_filepath)
+    elif source == "mpcorb":
+        return _read_mpcorb_catalogue(base_filepath)
+    return pd.DataFrame(columns=CATALOGUE_CONTRACT_COLS)
 
 
 def _resolve_xephem_filepath(xephem_filepath=None, cat_dir=None, source=DEFAULT_SOURCE):
@@ -492,8 +496,8 @@ def update_catalogue(
         will be created within this directory to store the base catalogue, overlay
         catalogues and final xephem CSV respectively.
     source : str, optional
-        Base asteroid catalogue to use. Allowed values are 'astorb' and
-        'mpcorb'.
+        Base asteroid catalogue to use. Allowed values are 'astorb',
+        'mpcorb' or 'none'/`None` to skip downloading a base catalogue and only use overlays.
     show_progress : boolean, optional
         Whether to show progress bars during catalogue download(s).
     cleanup : boolean, optional
@@ -502,6 +506,9 @@ def update_catalogue(
 
     source = _normalise_source(source)
     _, base_dir, overlay_dir, xephem_dir = _catalogue_subdirs(cat_dir)
+
+    if source == "none" and not (include_nea or include_comets):
+        raise ValueError("No catalogues selected for download or overlay. Nothing to do.")
 
     def download_cat(url, original_filename, cached_filename, target_dir):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -572,8 +579,9 @@ def update_catalogue(
             logger.info(f"Moved temporary file {downloaded_path} to {final_path}")
         return final_path
 
-    cats_to_process: list[tuple[str, int]] = [(source, 0)]
+    cats_to_process: list[tuple[str, int]] = []
     for include, additional_cat in [
+        (source != "none", (source, 0)),
         (include_nea, ("nea", 1)),
         (include_comets, ("comets", 2)),
     ]:
@@ -598,9 +606,9 @@ def update_catalogue(
         # Catch possible dubious year warnings from erfa
         warnings.filterwarnings("ignore", category=erfa.ErfaWarning)
         xephem_csv_filepath = generate_xephem_catalogue(
-            base_filepath=cat_filepaths[0],
-            nea_filepath=cat_filepaths[1],
-            comet_filepath=cat_filepaths[2],
+            base_filepath=cat_filepaths[0] or None,
+            nea_filepath=cat_filepaths[1] or None,
+            comet_filepath=cat_filepaths[2] or None,
             source=source,
             xephem_dir=xephem_dir,
         )
