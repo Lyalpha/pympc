@@ -36,6 +36,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "ipython>=8.18.1",
+    "matplotlib>=3.9.4",
+    "notebook>=7.5.5",
     "prek",
     "pytest>=8.4.2",
     "ruff",

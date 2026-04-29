@@ -3,7 +3,7 @@ from numbers import Real
 
 import rich_click as click
 
-from pympc.utils import get_pympc_cache_dir
+from pympc.pympc import _resolve_xephem_filepath
 
 
 def _verbosity_to_level(verbose_count: int) -> str:
@@ -412,14 +412,13 @@ def check_cmd(
     mode_display = (
         mode.title() if mode != "all" else "All (Minor & Major & Hill Sphere)"
     )
+    xephem_filepath = _resolve_xephem_filepath(
+        xephem_filepath=xephem_filepath,
+        cat_dir=cat_dir,
+        source=source,
+    )
     if mode.lower() != "hillsphere":
-        if xephem_filepath:
-            console.print(f"  Catalogue: {xephem_filepath}")
-        else:
-            cat_dir_display = cat_dir or get_pympc_cache_dir()
-            console.print(
-                f"  Catalogue: [bold cyan]{source.upper()}[/bold cyan] xephem file in {cat_dir_display}"
-            )
+        console.print(f"  Catalogue: {xephem_filepath}")
         console.print(f"  Search Mode: [bold cyan]{mode_display}[/bold cyan]")
         if max_mag is not None:
             console.print(f"  Max Magnitude: [bold cyan]{max_mag}[/bold cyan] mag")

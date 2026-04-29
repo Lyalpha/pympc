@@ -508,7 +508,9 @@ def update_catalogue(
     _, base_dir, overlay_dir, xephem_dir = _catalogue_subdirs(cat_dir)
 
     if source == "none" and not (include_nea or include_comets):
-        raise ValueError("No catalogues selected for download or overlay. Nothing to do.")
+        raise ValueError(
+            "No catalogues selected for download or overlay. Nothing to do."
+        )
 
     def download_cat(url, original_filename, cached_filename, target_dir):
         with tempfile.TemporaryDirectory() as tmp_dir:
