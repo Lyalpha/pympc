@@ -43,7 +43,7 @@ with the latest versions. The default call signature is shown for both the Pytho
 import pympc
 xephem_cat =pympc.update_catalogue()
 print(xephem_cat)
-# e.g. /tmp/xephem_astorb_20260424.csv
+# e.g. /home/[user]/.cache/pympc/xephem/xephem_astorb.csv
 ```
 **Command line**
 ```bash
@@ -57,10 +57,11 @@ The Minor Planet Center Near Earth Asteroid and Comets catalogues will be downlo
 base asteroid entries based on the values of the `include_nea` and `include_comets` arguments (both default to `True`).
 
 To use the MPC orbital catalogue as the base asteroid source instead, pass
-`catalogue_source="mpcorb"` to `pympc.update_catalogue()`.
+`source="mpcorb"` to `pympc.update_catalogue()`.
 
 It will create a csv file in the [xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501) and return the filepath to this file.
-Filenames follow the pattern `xephem_{source}_{YYYYMMDD}.csv`. By default, the file will be saved in the user's temporary directory - this can be changed by setting the `cat_dir` argument.
+Filenames follow the pattern `xephem_{source}.csv`. By default, the file will be saved in the user's cache 
+directory - this can be changed by setting the `cat_dir` argument.
 
 The catalogue should be updated periodically to ensure the most accurate positions are calculated, see
 [Limitations](#Limitations) for more details.
@@ -135,7 +136,7 @@ observatory = 950  # equivalently pass as "950" or "La Palma" or (342.1176 0.877
 pympc.minor_planet_check(ra, dec, epoch, search_radius, observatory=observatory)
 ```
 
-By default, the search will use an existing xephem catalogue matching the requested `catalogue_source` in the `pympc` cache directory.
+By default, the search will use an existing xephem catalogue matching the requested `source` in the `pympc` cache directory.
 If the file has been moved - or a custom `cat_dir` was passed to `pympc.update_catalogue()` - then the filepath can be specified.
 
 ```python
@@ -159,7 +160,7 @@ pympc.minor_planet_check(
     epoch=58484.,
     search_radius=30,
     cat_dir='/path/to/catalogues',
-    catalogue_source='mpcorb',
+    source='mpcorb',
 )
 ```
 
@@ -223,17 +224,17 @@ pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30
 
 * The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the
 [pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. Thus,
-the accuracy of the position is dependent on the time difference between the epoch of the orbit elements and the epoch
-at which the search is being performed. ASTORB improves this by providing more frequently updated osculating elements
-than MPCORB, but the propagated positions are still fundamentally two-body xephem propagations. Epoch differences
-of a few months or less will provide typical positional accuracies of less than a few arcsecond for the vast
+the accuracy of the position is dependent on the time difference between the epoch of the orbit elements (oscluation 
+epoch) and the epoch at which the search is being performed. ASTORB improves this by providing more frequently updated 
+osculating elements than MPCORB, but the propagated positions are still fundamentally two-body xephem propagations. 
+Epoch differences of a few months or less will provide typical positional accuracies of less than a few arcsecond for the vast
 majority of minor bodies. Note, additionally, that a small number of bodies (those undergoing strong perturbations and
-close to Earth) may be quite inaccurate (arcminutes) even at modest time differences between the search and orbit
-elements epochs. A fuller analysis is given in
-[notebooks/position_accuracy.ipynb](notebooks/position_accuracy.ipynb), with the following histogram showing the results.
-![histogram showing positional accuracy of pympc vs minor planet center](/notebooks/position_accuracy.png "Histogram showing positional accuracy of `pympc` vs Minor Planet Center")
-> **Note:** For this reason, `pympc` is not suitable to historical searches of positions since the Minor Planet Center
-> do not make available historical orbit elements catalgoues. It is intended for near real-time searches.
+close to Earth -- i.e. NEAs) may be quite inaccurate (arcminutes) even at modest time differences of a few weeks between the search and orbit
+elements epochs. A fuller, quantitative analysis is given inside two notebooks:
+[position_accuracy_asteroids.ipynb](notebooks/position_accuracy_asteroids.ipynb) and [position_accuracy_neas.ipynb](notebooks/position_accuracy_neas.ipynb).
+> **Note:** For this reason, `pympc` is not suitable to historical (or far-future) searches of positions. It is intended 
+> for near real-time searches and relies on users to periodically update and overwrite the underlying catalogue. Weekly
+> is sufficient to maintain arcsecond-level accuracy even for NEAs (excluding a few pathological cases).
 
 * The `xephem` package, used to calculate positions, can only provide geocentric astrometric positions. `pympc` will
 calculate the topocentric correction as a post-processing to the initial position. The simple topometric correction

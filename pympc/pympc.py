@@ -888,8 +888,8 @@ def minor_planet_check(
         given as a float, assumed to be in arcseconds.
     xephem_filepath : str, optional
         The xephem CSV file to use for calculating minor body positions. If None,
-        defaults to searching for the latest dated xephem catalogue for the
-        requested `source` in `cat_dir` or the pympc cache dir.
+        defaults to searching for the xephem catalogue for the requested `source`
+        in `cat_dir`.
     max_mag : float, optional
         Maximum magnitude of minor planet matches to return.
     include_minor_bodies : boolean, optional
