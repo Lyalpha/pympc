@@ -4,10 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.dev0]
+## [2.0.0]
 
-**Minimum Python version requirement is 3.9.**
-
+**Minimum Python version requirement is now 3.9.**
 
 - Added support for the [`ASTORB`](https://asteroid.lowell.edu/astorb/) catalogue as the default base asteroid source. The `source` argument to `update_catalogue()` allows selection between `astorb` or `mpcorb`.
   - ASTORB choice does not preclude overlaying comets and NEA bodies, which are still fetched from the MPC.
