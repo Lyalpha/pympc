@@ -4,18 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.dev0]
+## [2.0.0]
 
-**Minimum Python version requirement is 3.9.**
-
+**Minimum Python version requirement is now 3.9.**
 
 - Added support for the [`ASTORB`](https://asteroid.lowell.edu/astorb/) catalogue as the default base asteroid source. The `source` argument to `update_catalogue()` allows selection between `astorb` or `mpcorb`.
   - ASTORB choice does not preclude overlaying comets and NEA bodies, which are still fetched from the MPC.
+- New command-line checking interface (`pympc check`), replacing `minor-planet-check`, now supports custom observatory codes.
+- Added `pympc catalogue [update|status]` command-line interface to generate and check status of xephem catalogues from the command line.
 - Added `show_progress` parameter to `update_catalogue()` to control display of download progress bars (useful for notebook environments).
-  - Also added `--no-progress` command-line flag to `pympc update-catalogue` to disable download progress bars.
+  - Also added `--no-progress` command-line flag to `pympc catalogue update` to disable download progress bars.
 - Added `pympc update-obscode-cache` command to refresh the locally cached MPC observatory-code cache.
-- Added `pympc update-catalogue` command-line interface to generate xephem catalogues from the command line.
-- Command-line checking interface (`pympc check`) now supports custom observatory codes.
 - Generated xephem catalogues now follow the naming pattern `xephem_{source}.csv`, where `{source}` is `astorb|mpcorb`.
 - Project configuration consolidated into `pyproject.toml` (setup.cfg and requirements.txt removed).
 - Sidereal time is now calculated once per call, rather than per topocentric correction.
@@ -24,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **API changes:**
   - The default base asteroid catalogue is now Lowell Observatory's ASTORB instead of MPCORB.
   - The command-line script `minor-planet-check` has been removed.
-  - The command-line interface is now a subcommand-based `pympc` CLI (`pympc check ...`, `pympc update-catalogue ...`).
+  - The command-line interface is now a subcommand-based `pympc` CLI (`pympc check ...`, `pympc catalogue ...`).
   - The command-line arguments `--include-comets` and `--include-nea` have been removed and are now the default. Turn them off with `--no-comets` and `--no-nea`, as needed.
   - `minor_planet_check()` and `planet_hill_sphere_check()` now always return an `astropy.table.Table`, even with no matches (in which the table is empty). Previously an empty list was returned for no matches~~~~.
   - Added `max_workers` argument to `minor_planet_check()` to control the number of parallel workers with a default of `4`.

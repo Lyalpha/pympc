@@ -70,7 +70,7 @@ make profile
 
 Renders SVG terminal captures of live `pympc` CLI output for use in
 `docs/assets/` and the project README. Requires the catalogue to be up to
-date (run `pympc update-catalogue` first).
+date (run `pympc catalogue update` first).
 
 Produces three SVGs:
 

@@ -1,4 +1,5 @@
-<a href="https://ascl.net/2501.002"><img src="https://img.shields.io/badge/ascl-2501.002-blue.svg?colorB=262255" alt="ascl:2501.002" /></a>
+[![ascl](https://img.shields.io/badge/ascl-2501.002-blue.svg?colorB=262255)](https://ascl.net/2501.002)
+[![arXiv](https://img.shields.io/badge/arXiv-2603.02330-b31b1b.svg)](https://arxiv.org/abs/2603.02330)
 
 pympc
 =====
@@ -47,7 +48,7 @@ print(xephem_cat)
 ```
 **Command line**
 ```bash
-pympc update-catalogue
+pympc catalogue update
 ```
 
 The base asteroid catalogue downloaded by default will be Lowell Observatory's
@@ -60,7 +61,7 @@ To use the MPC orbital catalogue as the base asteroid source instead, pass
 `source="mpcorb"` to `pympc.update_catalogue()`.
 
 It will create a csv file in the [xephem database format](http://www.clearskyinstitute.com/xephem/help/xephem.html#mozTocId468501) and return the filepath to this file.
-Filenames follow the pattern `xephem_{source}.csv`. By default, the file will be saved in the user's cache 
+Filenames follow the pattern `xephem_{source}.csv`. By default, the file will be saved in the user's cache
 directory - this can be changed by setting the `cat_dir` argument.
 
 The catalogue should be updated periodically to ensure the most accurate positions are calculated, see
@@ -102,7 +103,7 @@ Installation of the package creates a `pympc` command with the following structu
 
 Use `pympc [subcommand] --help` to get more information on the usage of each subcommand.
 
-The command `pympc update-catalogue` should be run before searching, to fetch catalogues and generate xephem output.
+The command `pympc catalogue update` should be run before searching, to fetch catalogues and generate xephem output.
 
 
 ### Interactive searching
@@ -224,15 +225,15 @@ pympc.minor_planet_check(ra=230.028, dec=-11.774, epoch=58484., search_radius=30
 
 * The orbits are propagated following [xephem](http://www.clearskyinstitute.com/xephem) (via the
 [pyephem](https://rhodesmill.org/pyephem/) package), and this does not account for perturbations of the orbits. Thus,
-the accuracy of the position is dependent on the time difference between the epoch of the orbit elements (oscluation 
-epoch) and the epoch at which the search is being performed. ASTORB improves this by providing more frequently updated 
-osculating elements than MPCORB, but the propagated positions are still fundamentally two-body xephem propagations. 
+the accuracy of the position is dependent on the time difference between the epoch of the orbit elements (oscluation
+epoch) and the epoch at which the search is being performed. ASTORB improves this by providing more frequently updated
+osculating elements than MPCORB, but the propagated positions are still fundamentally two-body xephem propagations.
 Epoch differences of a few months or less will provide typical positional accuracies of less than a few arcsecond for the vast
 majority of minor bodies. Note, additionally, that a small number of bodies (those undergoing strong perturbations and
 close to Earth -- i.e. NEAs) may be quite inaccurate (arcminutes) even at modest time differences of a few weeks between the search and orbit
 elements epochs. A fuller, quantitative analysis is given inside two notebooks:
 [position_accuracy_asteroids.ipynb](notebooks/position_accuracy_asteroids.ipynb) and [position_accuracy_neas.ipynb](notebooks/position_accuracy_neas.ipynb).
-> **Note:** For this reason, `pympc` is not suitable to historical (or far-future) searches of positions. It is intended 
+> **Note:** For this reason, `pympc` is not suitable to historical (or far-future) searches of positions. It is intended
 > for near real-time searches and relies on users to periodically update and overwrite the underlying catalogue. Weekly
 > is sufficient to maintain arcsecond-level accuracy even for NEAs (excluding a few pathological cases).
 
