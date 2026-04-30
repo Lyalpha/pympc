@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pympc"
+version = "2.0.0"
+description = "Perform checks for the presence of moving Solar-system bodies at astronomical locations for a given epoch"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "GNU General Public License v3 (GPLv3)"}
+authors = [
+    {name = "Joe Lyman"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+]
+dependencies = [
+    "ephem>=4.1",
+    "astropy>=4.2",
+    "numpy>=1.18",
+    "pandas>=1.0",
+    "pyerfa>=2.0.0.0",
+    "requests>=2.20",
+    "rich>=14.0.0",
+    "rich-click>=1.8.9",
+    "loguru>=0.7.0",
+    "platformdirs>=4.0.0",
+    "zstandard>=0.25.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipython>=8.18.1",
+    "matplotlib>=3.9.4",
+    "notebook>=7.5.5",
+    "prek",
+    "pytest>=8.4.2",
+    "ruff",
+    "twine",
+    "ty",
+]
+
+[project.urls]
+Homepage = "https://github.com/lyalpha/pympc"
+Repository = "https://github.com/lyalpha/pympc"
+
+[project.scripts]
+pympc = "pympc.cli:cli"
+
+[tool.setuptools]
+packages = ["pympc", "test"]
+
+[tool.setuptools.package-data]
+pympc = ["data/*.npy"]

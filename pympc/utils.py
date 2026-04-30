@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
+from platformdirs import user_cache_dir
 
 # No logging by default incase being used as a library
 logger.disable("pympc")
@@ -14,20 +15,8 @@ logger.disable("pympc")
 MPC_OBSCODES_URL = "https://data.minorplanetcenter.net/api/obscodes"
 
 
-def _cache_dir() -> str:
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser(r"~\AppData\Local")
-    elif sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Caches")
-    else:
-        base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
-    path = os.path.join(base, "pympc")
-    os.makedirs(path, exist_ok=True)
-    return path
-
-
-def _cache_path() -> str:
-    return os.path.join(_cache_dir(), "obs_codes.npy")
+def get_pympc_cache_dir() -> str:
+    return user_cache_dir(appname="pympc", ensure_exists=True)
 
 
 def _df_to_structured_array(df: pd.DataFrame) -> np.ndarray:
@@ -42,8 +31,9 @@ def _df_to_structured_array(df: pd.DataFrame) -> np.ndarray:
         ]
     )
     arr = np.empty(len(df), dtype=dtype)
-    for field in arr.dtype.names:
-        arr[field] = df[field].to_numpy()
+    if arr.dtype.names is not None:
+        for field in arr.dtype.names:
+            arr[field] = df[field].to_numpy()
     order = np.argsort(arr["obscode"])
     return arr[order]
 
@@ -70,35 +60,66 @@ def _fetch_obscodes() -> np.ndarray:
         df[col] = df[col].fillna("").astype(str)
 
     # Deduplicate by obscode
-    df = df.sort_values("obscode").drop_duplicates(subset="obscode", keep="last").reset_index(drop=True)
+    df = (
+        df.sort_values("obscode")
+        .drop_duplicates(subset="obscode", keep="last")
+        .reset_index(drop=True)
+    )
 
     return _df_to_structured_array(df)
 
 
 def ensure_obs_codes_cached(update: bool = False) -> str:
     """
-    Ensure the obscodes cache exists. If update=True, force re-download.
-    Returns the cache file path.
-    """
-    cache = _cache_path()
-    if os.path.exists(cache) and not update:
-        return cache
+    Ensure the MPC observatory-code data is available locally.
 
-    logger.info("fetching and caching MPC observatory codes")
+    On the first call (or when ``update=True``), the current list of
+    observatory codes is downloaded from the Minor Planet Center API and
+    saved as a NumPy structured array in the OS-specific user-cache
+    directory (e.g. ``~/.cache/pympc/obs_codes.npy`` on Linux).  Subsequent
+    calls skip the download unless ``update=True`` is passed.
+
+    Parameters
+    ----------
+    update : bool, optional
+        Force a fresh download even if a cached file already exists.
+        Defaults to ``False``.
+
+    Returns
+    -------
+    str
+        Absolute path to the local cache file.
+
+    Raises
+    ------
+    requests.HTTPError
+        If the HTTP request to the MPC API fails.
+
+    See Also
+    --------
+    update_obscode_cache : Convenience wrapper that discards the return value.
+    get_observatory_data : Uses the cache to resolve a code or name to coordinates.
+    """
+    obscodes_cache = os.path.join(get_pympc_cache_dir(), "obs_codes.npy")
+    if os.path.exists(obscodes_cache) and not update:
+        return obscodes_cache
+
+    logger.info("Fetching and caching MPC observatory codes")
     obscode_arr = _fetch_obscodes()
 
-    fd, tmp_path = tempfile.mkstemp(dir=_cache_dir(), suffix=".npy")
+    fd, tmp_path = tempfile.mkstemp(suffix=".npy")
     os.close(fd)
     try:
         np.save(tmp_path, obscode_arr, allow_pickle=False)
-        os.replace(tmp_path, cache)
-    finally:
+        os.replace(tmp_path, obscodes_cache)
+    except BaseException:
         try:
             os.remove(tmp_path)
-        except (FileNotFoundError, PermissionError, OSError):
+        except OSError:
             pass
-        logger.info(f"Saved obscodes cache to {cache}")
-        return cache
+        raise
+    logger.info(f"Saved obscodes cache to {obscodes_cache}")
+    return obscodes_cache
 
 
 def _load_obs_codes() -> np.ndarray:
@@ -110,7 +131,7 @@ def _load_obs_codes() -> np.ndarray:
 
 
 def get_observatory_data(
-    observatory: Union[str, int, Tuple[float, float, float]]
+    observatory: Union[str, int, Tuple[float, float, float]],
 ) -> Tuple[float, float, float]:
     """
     Resolve an observatory specification to (longitude [deg], rho_cos_phi, rho_sin_phi).
@@ -123,7 +144,9 @@ def get_observatory_data(
     # Tuple passthrough
     if isinstance(observatory, tuple):
         if len(observatory) != 3:
-            raise ValueError("observatory tuple must be (longitude, rho_cos_phi, rho_sin_phi)")
+            raise ValueError(
+                "observatory tuple must be (longitude, rho_cos_phi, rho_sin_phi)"
+            )
         return float(observatory[0]), float(observatory[1]), float(observatory[2])
 
     if isinstance(observatory, int):
@@ -151,18 +174,55 @@ def get_observatory_data(
         elif (short_sum := np.sum(short_mask)) == 1:
             row = obscode_arr[short_mask][0]
         elif (name_sum + short_sum) > 1:
-            raise ValueError(f"ambiguous observatory name '{observatory}', please use the obscode.")
+            raise ValueError(
+                f"ambiguous observatory name '{observatory}', please use the obscode."
+            )
     if row is not None:
         return float(row["longitude"]), float(row["rhocosphi"]), float(row["rhosinphi"])
-    raise ValueError(f"observatory '{observatory}' not found by code or name.\n"
-                     f"try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
-                     f"cache and fetch the latest data from the MPC.")
+    raise ValueError(
+        f"observatory '{observatory}' not found by code or name.\n"
+        f"try running pympc.utils.ensure_obs_codes_cached(update=True) to refresh the "
+        f"cache and fetch the latest data from the MPC."
+    )
 
 
 def add_logging(level="INFO", sink=sys.stderr):
     """
     Enable logging for the application.
     """
+
     logger.enable("pympc")
     logger.remove()
-    logger.add(sink, level=level)
+    logger.add(sys.stderr if sink is None else sink, level=level)
+
+
+def update_obscode_cache() -> None:
+    """
+    Download the latest MPC observatory codes and update the local cache.
+
+    This is a convenience wrapper around :func:`ensure_obs_codes_cached`
+    that forces a fresh download regardless of whether a cached copy already
+    exists.  Call this periodically to pick up new or renamed observatories.
+
+    The cache is stored in the OS-specific user-cache directory:
+
+    * **Linux / other** — ``$XDG_CACHE_HOME/pympc/`` (default
+      ``~/.cache/pympc/``)
+    * **macOS** — ``~/Library/Caches/pympc/``
+    * **Windows** — ``%LOCALAPPDATA%\\pympc\\``
+
+    From the command line this is equivalent to running::
+
+        pympc update-obscode-cache
+
+    Raises
+    ------
+    requests.HTTPError
+        If the HTTP request to the MPC API fails.
+
+    See Also
+    --------
+    ensure_obs_codes_cached : Lower-level function that skips the download
+        if an up-to-date cache already exists.
+    """
+    ensure_obs_codes_cached(update=True)
