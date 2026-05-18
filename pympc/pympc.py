@@ -1201,33 +1201,38 @@ def _cone_search_xephem_entries(
     results = []
     for xephem_str in xephem_db:
         mp = ephem.readdb(xephem_str)
-        mp.compute(date)
-
+        body_name = (xephem_str.split(",", 1)[0] or "<unknown>").strip()
         # The _cone_search() functionality is directly embedded here to save the overhead
         # of calling another function for every single entry in the xephem catalogue.
-
-        if mp.mag > max_mag:
-            continue
-
+        # We wrap all pyephem calls in a try/except block, as some entries (particularly those with
+        # nearly parabolic orbits) can raise RuntimeErrors when their properties are accessed.
         try:
+            mp.compute(date)
+            mag = mp.mag
+            # Early magnitude filter (cheap operation) before expensive separation calculation
+            if mag > max_mag:
+                continue
+            # Cache position properties as they may also raise RuntimeError
+            # for nearly parabolic bodies far from the Sun
             separation_rad = ephem.separation((mp.a_ra, mp.a_dec), coo)
+            if separation_rad > search_radius_with_buffer_rad:
+                continue
+
+            ra, dec = float(mp.a_ra), float(mp.a_dec)
+            earth_distance = mp.earth_distance
         except RuntimeError as e:
             warnings.warn(
-                f"Could not calculate separation for body {mp.name}: '{str(e)}'",
+                f"Could not compute properties for body {body_name}: '{str(e)}'",
                 RuntimeWarning,
                 stacklevel=2,
             )
             continue
 
-        if separation_rad > search_radius_with_buffer_rad:
-            continue
-
-        ra, dec = float(mp.a_ra), float(mp.a_dec)
         if use_topocentric:
             ra, dec = equitorial_geocentric_to_topocentric(
-                mp.a_ra,
-                mp.a_dec,
-                mp.earth_distance,
+                ra,
+                dec,
+                earth_distance,
                 date.datetime(),
                 longitude,
                 rhocosphi,
@@ -1246,7 +1251,7 @@ def _cone_search_xephem_entries(
                 ra * RADTODEG,
                 dec * RADTODEG,
                 separation_arcsec,
-                mp.mag,
+                mag,
                 xephem_str,
             ]
         )
@@ -1500,20 +1505,22 @@ def _cone_search(
     buffer,
     local_sidereal_time=None,
 ):
-    if body.mag > max_mag:
-        return None
-    use_topocentric = any((longitude, rhocosphi, rhosinphi))
-    search_radius_with_buffer_rad = (search_radius + buffer) * DEGTORAD / 3600.0
-    search_radius_rad = search_radius * DEGTORAD / 3600.0
     try:
+        body_mag = body.mag
+        if body_mag > max_mag:
+            return None
         separation_rad = ephem.separation((body.a_ra, body.a_dec), coo)
     except RuntimeError as e:
         warnings.warn(
-            f"Could not calculate separation for body {body.name}: '{str(e)}'",
+            f"Could not compute properties for body {body.name}: '{str(e)}'",
             RuntimeWarning,
             stacklevel=2,
         )
         return None
+
+    use_topocentric = any((longitude, rhocosphi, rhosinphi))
+    search_radius_with_buffer_rad = (search_radius + buffer) * DEGTORAD / 3600.0
+    search_radius_rad = search_radius * DEGTORAD / 3600.0
     # First match geocentric positions against the buffered search radius
     if separation_rad <= search_radius_with_buffer_rad:
         ra, dec = float(body.a_ra), float(body.a_dec)
@@ -1540,7 +1547,7 @@ def _cone_search(
             ra * RADTODEG,
             dec * RADTODEG,
             separation_arcsec,
-            body.mag,
+            body_mag,
             xephem_str or body.writedb(),
         ]
     return None

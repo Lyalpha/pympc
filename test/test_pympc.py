@@ -273,6 +273,39 @@ class TestPyMPC(unittest.TestCase):
         )
         self.assertEqual(len(ceres_result), 0)
 
+    def test_minor_planet_check_skips_entries_with_runtimeerror_on_mag(self):
+        """Test that minor_planet_check gracefully handles nearly-parabolic bodies far from the Sun.
+
+        This uses the same test body pyephem uses in their own tests.
+        See: https://github.com/brandon-rhodes/pyephem/blob/master/pyephem/tests/test_ephem.py
+        """
+        parabolic_xephem_line = (
+            "C/1980 Y1 (Bradfield),e,138.5850,115.3515,358.2941,945.0557,"
+            "0.0000339,0.999725,359.9999,12/27.0/1980,2000,g  9.0,4.0"
+        )
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write(parabolic_xephem_line + "\n")
+            temp_file = f.name
+
+        try:
+            with self.assertWarnsRegex(
+                RuntimeWarning,
+                "Could not compute properties for body",
+            ):
+                result = pympc.minor_planet_check(
+                    self.ceres_ra,
+                    self.ceres_dec,
+                    self.ceres_mjd,
+                    self.ceres_search_radius,
+                    xephem_filepath=temp_file,
+                    include_major_bodies=False,
+                    chunk_size=0,
+                )
+            self.assertEqual(len(result), 0)
+        finally:
+            os.remove(temp_file)
+
     def test_minor_planet_check_observatory(self):
         # Passing an observatory should return the correct results, regardless of
         # observatory format
